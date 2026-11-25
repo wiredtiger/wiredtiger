@@ -28,6 +28,7 @@
  * checks that it lets a waiting writer take the handle list lock.
  */
 
+#if READ_WRITE_LOCK_TYPE == READ_WRITE_LOCK_CUSTOM
 namespace {
 
 const int NTABLES = 10;
@@ -426,3 +427,4 @@ TEST_CASE("A walk that moves on to the root does not save it as a walk point", "
     /* Every walk point holds a hazard pointer, so none is left once the walk point is gone. */
     CHECK(t.hazards() == 0);
 }
+#endif

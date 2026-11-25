@@ -49,6 +49,23 @@ struct __wt_semaphore {
  * Don't modify this structure without understanding the read/write locking
  * functions.
  */
+#define READ_WRITE_LOCK_CUSTOM 0
+#define READ_WRITE_LOCK_PTHREAD 1
+
+#ifndef READ_WRITE_LOCK_TYPE
+#ifdef TSAN_BUILD
+#define READ_WRITE_LOCK_TYPE READ_WRITE_LOCK_PTHREAD
+#else
+#define READ_WRITE_LOCK_TYPE READ_WRITE_LOCK_CUSTOM
+#endif
+#endif
+
+#if READ_WRITE_LOCK_TYPE == READ_WRITE_LOCK_PTHREAD
+struct __wt_rwlock { /* Read/write lock */
+    pthread_rwlock_t lock;
+    bool initialized;
+};
+#elif READ_WRITE_LOCK_TYPE == READ_WRITE_LOCK_CUSTOM
 struct __wt_rwlock { /* Read/write lock */
     wt_shared volatile union {
         uint64_t v; /* Full 64-bit value */
@@ -69,18 +86,10 @@ struct __wt_rwlock { /* Read/write lock */
 
     WT_CONDVAR *cond_readers; /* Blocking readers */
     WT_CONDVAR *cond_writers; /* Blocking writers */
-
-#ifdef TSAN_BUILD
-    /*
-     * Our read/write locks provide thread safety via barriers, but TSan instrumentation doesn't
-     * recognize the assembly instructions our barriers use. As a result TSan reports data races on
-     * memory locations that are correctly protected by locks. To address this each of our rwlock
-     * functions performs a dummy acquire read or release write to this field which communicates the
-     * correct acquire/release semantics to TSan.
-     */
-    uint64_t tsan_sync;
-#endif
 };
+#else
+#error Unknown read/write lock type
+#endif
 
 /*
  * WT_RWLOCK_INIT_TRACKED --
@@ -89,6 +98,13 @@ struct __wt_rwlock { /* Read/write lock */
  * Implemented as a macro so we can pass in a statistics field and convert
  * it into a statistics structure array offset.
  */
+#if READ_WRITE_LOCK_TYPE == READ_WRITE_LOCK_PTHREAD
+#define WT_RWLOCK_INIT_TRACKED(session, l, name) \
+    do {                                         \
+        WT_RET(__wt_rwlock_init(session, l));    \
+    } while (0)
+#define WT_RWLOCK_INIT_SESSION_TRACKED(session, l, name) WT_RWLOCK_INIT_TRACKED(session, l, name)
+#elif READ_WRITE_LOCK_TYPE == READ_WRITE_LOCK_CUSTOM
 #define WT_RWLOCK_INIT_TRACKED(session, l, name)                                                  \
     do {                                                                                          \
         WT_RET(__wt_rwlock_init(session, l));                                                     \
@@ -108,6 +124,7 @@ struct __wt_rwlock { /* Read/write lock */
         (l)->stat_session_usecs_off =                                                       \
           (int16_t)WT_SESSION_STATS_FIELD_TO_OFFSET(&(session)->stats, lock_##name##_wait); \
     } while (0)
+#endif
 
 /*
  * Spin locks:

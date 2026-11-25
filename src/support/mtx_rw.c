@@ -88,6 +88,146 @@
 
 #include "wt_internal.h"
 
+#if READ_WRITE_LOCK_TYPE == READ_WRITE_LOCK_PTHREAD
+
+/*
+ * __rwlock_check --
+ *     Report an unexpected pthread read/write lock error.
+ */
+static int
+__rwlock_check(WT_SESSION_IMPL *session, int ret, const char *operation)
+{
+    if (ret != 0)
+        return (__wt_panic(session, ret, "%s", operation));
+    return (0);
+}
+
+/*
+ * __wt_rwlock_init --
+ *     Initialize a read/write lock.
+ */
+int
+__wt_rwlock_init(WT_SESSION_IMPL *session, WT_RWLOCK *l)
+{
+    l->initialized = false;
+    WT_RET(__rwlock_check(session, pthread_rwlock_init(&l->lock, NULL), "pthread_rwlock_init"));
+    l->initialized = true;
+    return (0);
+}
+
+/*
+ * __wt_rwlock_destroy --
+ *     Destroy a read/write lock.
+ */
+void
+__wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK *l)
+{
+    if (l->initialized) {
+        /* Other users must be quiesced; consume any write lock retained by the caller. */
+        if (__wt_rwlock_islocked(session, l))
+            __wt_writeunlock(session, l);
+        WT_IGNORE_RET(
+          __rwlock_check(session, pthread_rwlock_destroy(&l->lock), "pthread_rwlock_destroy"));
+        l->initialized = false;
+    }
+}
+
+/*
+ * __wt_try_readlock --
+ *     Try to get a shared lock, fail immediately if unavailable.
+ */
+int
+__wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
+{
+    int ret = pthread_rwlock_tryrdlock(&l->lock);
+
+    if (ret == EBUSY || ret == EAGAIN)
+        return (__wt_set_return(session, EBUSY));
+    return (__rwlock_check(session, ret, "pthread_rwlock_tryrdlock"));
+}
+
+/*
+ * __wt_readlock --
+ *     Get a shared lock.
+ */
+void
+__wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
+{
+    WT_IGNORE_RET(
+      __rwlock_check(session, pthread_rwlock_rdlock(&l->lock), "pthread_rwlock_rdlock"));
+}
+
+/*
+ * __wt_readunlock --
+ *     Release a shared lock.
+ */
+void
+__wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
+{
+    WT_IGNORE_RET(
+      __rwlock_check(session, pthread_rwlock_unlock(&l->lock), "pthread_rwlock_unlock"));
+}
+
+/*
+ * __wt_try_writelock --
+ *     Try to get an exclusive lock, fail immediately with EBUSY if unavailable.
+ */
+int
+__wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
+{
+    int ret = pthread_rwlock_trywrlock(&l->lock);
+
+    if (ret == EBUSY)
+        return (__wt_set_return(session, ret));
+    return (__rwlock_check(session, ret, "pthread_rwlock_trywrlock"));
+}
+
+/*
+ * __wt_writelock --
+ *     Wait to get an exclusive lock.
+ */
+void
+__wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
+{
+    WT_IGNORE_RET(
+      __rwlock_check(session, pthread_rwlock_wrlock(&l->lock), "pthread_rwlock_wrlock"));
+}
+
+/*
+ * __wt_writeunlock --
+ *     Release an exclusive lock.
+ */
+void
+__wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
+{
+    WT_IGNORE_RET(
+      __rwlock_check(session, pthread_rwlock_unlock(&l->lock), "pthread_rwlock_unlock"));
+}
+
+/*
+ * __wt_rwlock_islocked --
+ *     Return if a read/write lock is currently locked for reading or writing.
+ */
+bool
+__wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
+{
+    WT_DECL_RET;
+
+    if (!l->initialized)
+        return (false);
+    ret = pthread_rwlock_trywrlock(&l->lock);
+    if (ret == 0) {
+        WT_IGNORE_RET(
+          __rwlock_check(session, pthread_rwlock_unlock(&l->lock), "pthread_rwlock_unlock"));
+        return (false);
+    }
+    if (ret != EBUSY && ret != EDEADLK)
+        WT_IGNORE_RET(__rwlock_check(session, ret, "pthread_rwlock_trywrlock"));
+    return (true);
+}
+
+#elif READ_WRITE_LOCK_TYPE == READ_WRITE_LOCK_CUSTOM
+
 /*
  * __wt_rwlock_init --
  *     Initialize a read/write lock.
@@ -150,11 +290,6 @@ __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 
     /* We rely on this atomic operation to provide a barrier. */
     WT_RET(__wt_atomic_cas_uint64_v(&l->u.v, old.u.v, new.u.v) ? 0 : EBUSY);
-
-#ifdef TSAN_BUILD
-    /* Perform a dummy read to inform TSan this function does in fact have acquire semantics. */
-    (void)__atomic_load_n(&l->tsan_sync, __ATOMIC_ACQUIRE);
-#endif
 
     return (0);
 }
@@ -282,11 +417,6 @@ stall:
      */
     WT_ACQUIRE_BARRIER();
 
-#ifdef TSAN_BUILD
-    /* Perform a dummy read to inform TSan this function does in fact have acquire semantics. */
-    (void)__atomic_load_n(&l->tsan_sync, __ATOMIC_ACQUIRE);
-#endif
-
     /* Sanity check that we (still) have the lock. */
     WT_ASSERT(session,
       ticket == __wt_atomic_load_uint8_v_relaxed(&l->u.s.current) &&
@@ -301,11 +431,6 @@ void
 __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
     WT_RWLOCK new, old;
-
-#ifdef TSAN_BUILD
-    /* Perform a dummy write to inform TSan this function does in fact have release semantics. */
-    __atomic_store_n(&l->tsan_sync, 1, __ATOMIC_RELEASE);
-#endif
 
     do {
         old.u.v = __wt_atomic_load_uint64_v_relaxed(&l->u.v);
@@ -363,11 +488,6 @@ __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     new.u.v = old.u.v;
     new.u.s.next++;
     WT_RET(__wt_atomic_cas_uint64_v(&l->u.v, old.u.v, new.u.v) ? 0 : EBUSY);
-
-#ifdef TSAN_BUILD
-    /* Perform a dummy write to inform TSan this function does in fact have acquire semantics. */
-    (void)__atomic_load_n(&l->tsan_sync, __ATOMIC_ACQUIRE);
-#endif
 
     return (0);
 }
@@ -473,11 +593,6 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
      */
     WT_ACQUIRE_BARRIER();
 
-#ifdef TSAN_BUILD
-    /* Perform a dummy read to inform TSan this function does in fact have acquire semantics. */
-    (void)__atomic_load_n(&l->tsan_sync, __ATOMIC_ACQUIRE);
-#endif
-
     /* Sanity check that we (still) have the lock. */
     WT_ASSERT(session,
       ticket == __wt_atomic_load_uint8_v_relaxed(&l->u.s.current) &&
@@ -492,11 +607,6 @@ void
 __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
     WT_RWLOCK new, old;
-
-#ifdef TSAN_BUILD
-    /* Perform a dummy write to inform TSan this function does in fact have release semantics. */
-    __atomic_store_n(&l->tsan_sync, 1, __ATOMIC_RELEASE);
-#endif
 
     do {
         old.u.v = __wt_atomic_load_uint64_v_relaxed(&l->u.v);
@@ -541,3 +651,7 @@ __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     old.u.v = __wt_atomic_load_uint64_v_relaxed(&l->u.v);
     return (old.u.s.current != old.u.s.next || old.u.s.readers_active != 0);
 }
+
+#else
+#error Unknown read/write lock type
+#endif

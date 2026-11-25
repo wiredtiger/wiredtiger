@@ -172,6 +172,10 @@ thread_dump(void *arg)
 
     while (running) {
         sleep(1);
+#if READ_WRITE_LOCK_TYPE == READ_WRITE_LOCK_PTHREAD
+        if (opts->verbose)
+            printf("\nrwlock { pthread }\n");
+#else
         if (opts->verbose)
             printf(
               "\n"
@@ -179,6 +183,7 @@ thread_dump(void *arg)
               ", readers_active %" PRIu32 ", readers_queued %" PRIu8 " }\n",
               rwlock.u.s.current, rwlock.u.s.next, rwlock.u.s.reader, rwlock.u.s.readers_active,
               rwlock.u.s.readers_queued);
+#endif
     }
 
     return (NULL);

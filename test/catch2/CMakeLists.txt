@@ -52,6 +52,7 @@ else()
         misc_tests/test_ref_addr_discard.cpp
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_ref_page_type.cpp
+        misc_tests/test_rwlock_api.cpp
         misc_tests/test_rwlock_writer_waiting.cpp
         misc_tests/test_layered_ingest_uri.cpp
         misc_tests/test_layered_missing_stable.cpp
@@ -115,6 +116,14 @@ else()
         truncate/test_layered_table_truncate_clear.cpp
         truncate/test_layered_table_truncate_gc.cpp
         truncate/test_layered_table_truncate_rollback.cpp
+    )
+endif()
+
+# These tests require the custom RW-lock implementation or exact writer-queue reporting.
+if(CMAKE_BUILD_TYPE_UPPER STREQUAL "TSAN")
+    list(REMOVE_ITEM unittests
+        misc_tests/test_evict_clear_walks.cpp
+        misc_tests/test_rwlock_writer_waiting.cpp
     )
 endif()
 

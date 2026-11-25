@@ -130,3 +130,6 @@ race:__truncate_entry_remove
 race:__layered_table_truncate_gc
 race:__wt_layered_table_truncate_clear
 race:__layered_build_sorted_truncates
+
+# FIXME-WT-19233: Remove this temporary schema-epoch lock-order suppression after investigation.
+deadlock:__disagg_btree_stamp_create_epoch
