@@ -74,7 +74,16 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
             ('true' if self.mirroring else 'false')
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, prepare_targets, directions, tie_scenarios, mirroring_modes)
+    scenarios = make_scenarios(
+        disagg_storages, prepare_targets, directions, tie_scenarios, mirroring_modes, [
+            ('both_constituents', dict(constituents='both')),
+            ('stable_only', dict(constituents='stable')),
+            ('ingest_only', dict(constituents='ingest')),
+        ], include=lambda _, s: s['constituents'] == 'both' or
+            (not s['with_tie'] and
+                ((s['constituents'] == 'stable' and s['prepare_before_step_down']) or
+                 (s['constituents'] == 'ingest' and not s['prepare_before_step_down'] and
+                     not s['mirroring']))))
 
     test_name = __qualname__
     uri = f'layered:{test_name}'
@@ -90,9 +99,17 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
 
     # Interleaving the two constituents' keys keeps both populated across the whole walk.
     def stable_keys(self):
+        if self.constituents == 'stable':
+            return self.keys()
+        if self.constituents == 'ingest':
+            return []
         return [k for i, k in enumerate(self.keys()) if i % 2 == 0]
 
     def ingest_keys(self):
+        if self.constituents == 'stable':
+            return []
+        if self.constituents == 'ingest':
+            return self.keys()
         return [k for i, k in enumerate(self.keys()) if i % 2 == 1]
 
     def set_global_ts(self, oldest, stable):
@@ -147,7 +164,8 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
     # prepared session and cursor, and a function that resolves the prepared transaction.
     def prepare_table(self):
         self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
+        if self.constituents != 'ingest':
+            self.session.create(self.uri, 'key_format=S,value_format=S')
 
         keys = self.keys()
         blocked_key = keys[self.blocked_index]
@@ -156,9 +174,8 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
         # direction the walk takes, it ties on one of these immediately before the blocked key.
         tie_keys = [keys[self.blocked_index - 1], keys[self.blocked_index + 1]]
 
-        # Populate half the keys and make them stable, so a walk reads them from the stable
-        # constituent.
-        self.write_at(self.uri, {k: 'v-initial' for k in self.stable_keys()}, 10)
+        if self.constituents != 'ingest':
+            self.write_at(self.uri, {k: 'v-initial' for k in self.stable_keys()}, 10)
         if self.with_tie:
             self.write_at(self.uri, {k: 'v-stable-original' for k in tie_keys}, 10)
         self.set_global_ts(1, 10)
@@ -169,9 +186,11 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
         step_down_ts = 15
 
         prepare_session = self.conn.open_session()
-        prepare_cursor = prepare_session.open_cursor(self.uri, None, None)
+        prepare_cursor = None
 
         def prepare():
+            nonlocal prepare_cursor
+            prepare_cursor = prepare_session.open_cursor(self.uri, None, None)
             prepare_session.begin_transaction()
             prepare_cursor[blocked_key] = 'v-prepared'
             prepare_session.prepare_transaction(
@@ -180,12 +199,12 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
         if self.prepare_before_step_down:
             prepare()
 
-        # Announce the step-down, then write the remaining keys so they reach the ingest
-        # constituent. The walk needs a position in both constituents to consult either. The tie
-        # keys are among these, now duplicated on stable above: whichever constituent the walk
-        # consults for one of them, the other still holds a copy too.
-        self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(step_down_ts))
-        if self.mirroring:
+        if self.constituents != 'stable':
+            self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(step_down_ts))
+        # A table created after the announcement has no stable constituent.
+        if self.constituents == 'ingest':
+            self.session.create(self.uri, 'key_format=S,value_format=S')
+        if self.mirroring and self.constituents != 'stable':
             self.addTearDownAction(self.finish_step_down_for_teardown)
         self.write_at(self.uri, {k: 'v-initial' for k in self.ingest_keys()}, 20)
 
@@ -222,40 +241,85 @@ class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestC
             'v-prepared' if self.commit_prepared and key == blocked_key else 'v-initial')
             for key in expected])
 
-    # A bounded walk whose first key has a prepared update: the btree cursor resets itself on the
-    # prepare conflict while it is first positioned, so there is no blocked position to resume
-    # from. The walk keeps reporting the prepare conflict, and once the prepared transaction is
-    # resolved returns the keys within the bound.
     def test_bounded_walk_starting_on_prepared_key(self):
         keys = self.keys()
         blocked_key, prepare_session, prepare_cursor, resolve = self.prepare_table()
-
-        cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(35))
-        cursor.set_key(blocked_key)
-        cursor.bound('bound=' + ('lower' if self.forward else 'upper'))
-        step = cursor.next if self.forward else cursor.prev
-
+        i = self.blocked_index
+        bounds = [
+            [('lower' if self.forward else 'upper', blocked_key, True)],
+            [('lower', keys[i - 2], False)],
+            [('upper', keys[i + 2], False)],
+            [('lower', keys[i - 1] + 'a', True), ('upper', keys[i + 1] + 'a', True)],
+            [('lower', keys[i - 2], False), ('upper', keys[i + 2], False)],
+            [('lower', blocked_key, True), ('upper', blocked_key, True)],
+        ]
+        walks = []
         try:
-            # Retrying the reset cursor must still conflict while the prepare is unresolved.
-            for _ in range(2):
-                self.assertRaisesException(wiredtiger.WiredTigerError, step,
-                    '/conflict with a prepared update/')
+            for bound in bounds:
+                cursor = self.session.open_cursor(self.uri, None, None)
+                expected_keys = keys[:]
+                for side, key, inclusive in bound:
+                    cursor.set_key(key)
+                    self.assertEqual(cursor.bound(
+                        f'bound={side},inclusive={str(inclusive).lower()}'), 0)
+                    if side == 'lower':
+                        expected_keys = [k for k in expected_keys
+                            if k > key or (inclusive and k == key)]
+                    else:
+                        expected_keys = [k for k in expected_keys
+                            if k < key or (inclusive and k == key)]
+                if not self.forward:
+                    expected_keys.reverse()
+                step = cursor.next if self.forward else cursor.prev
+                prefix = []
+                # Initial bounded positioning can conflict before the merge returns a readable key.
+                for _ in range(len(expected_keys) + 1):
+                    try:
+                        self.assertEqual(step(), 0)
+                    except wiredtiger.WiredTigerError as e:
+                        self.assertIn('WT_PREPARE_CONFLICT', str(e))
+                        break
+                    prefix.append(cursor.get_key())
+                    self.assertEqual((cursor.get_key(), cursor.get_value()),
+                        (expected_keys[len(prefix) - 1], 'v-initial'))
+                else:
+                    self.fail('bounded scan never reached the prepared key')
+                for _ in range(2):
+                    self.assertRaisesException(wiredtiger.WiredTigerError, step,
+                        '/conflict with a prepared update/')
+                if prefix:
+                    reverse = cursor.prev if self.forward else cursor.next
+                    if self.mirroring and not self.prepare_before_step_down:
+                        for _ in range(2):
+                            self.assertRaisesException(wiredtiger.WiredTigerError, reverse,
+                                '/conflict with a prepared update/')
+                    else:
+                        self.assertEqual(reverse(), 0)
+                        self.assertEqual((cursor.get_key(), cursor.get_value()),
+                            (prefix[-1], 'v-initial'))
+                    for _ in range(2):
+                        self.assertRaisesException(wiredtiger.WiredTigerError, step,
+                            '/conflict with a prepared update/')
+                walks.append((cursor, expected_keys[len(prefix):]))
             resolve()
-            seen = []
-            while step() == 0:
-                seen.append((cursor.get_key(), cursor.get_value()))
+            for cursor, suffix in walks:
+                step = cursor.next if self.forward else cursor.prev
+                seen = []
+                expected = [(key, 'v-prepared' if self.commit_prepared and key == blocked_key
+                    else 'v-initial') for key in suffix]
+                for pair in expected:
+                    self.assertEqual(step(), 0)
+                    seen.append((cursor.get_key(), cursor.get_value()))
+                    self.assertEqual(seen[-1], pair)
+                self.assertEqual(step(), wiredtiger.WT_NOTFOUND)
+                self.assertEqual(seen, expected)
         finally:
             self.session.rollback_transaction()
-            cursor.close()
+            for cursor, _ in walks:
+                cursor.close()
             prepare_cursor.close()
             prepare_session.close()
-
-        expected = keys[self.blocked_index:] if self.forward else \
-            list(reversed(keys[:self.blocked_index + 1]))
-        self.assertEqual(seen, [(key,
-            'v-prepared' if self.commit_prepared and key == blocked_key else 'v-initial')
-            for key in expected])
 
 if __name__ == '__main__':
     wttest.run()

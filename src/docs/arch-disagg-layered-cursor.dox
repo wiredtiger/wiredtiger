@@ -72,4 +72,38 @@ constituents can be restored.
 Resetting or starting a different cursor operation clears this saved walk state, including any key
 saved while reopening stable for that operation.
 
+@subsection layered-cursor-prepare-tests Deterministic prepare-conflict coverage
+
+The Python suite checks exact ordered key/value sequences and end-of-scan results on the same
+cursor and read transaction across prepare conflicts:
+
+- `test_layered_async_stepdown23.py`: Independent stable and ingest prepares with distinct keys, both
+  scan directions, either constituent encountered first, either rollback order, fresh or successfully
+  searched cursors, and repeated retries before and after the first rollback.
+- `test_layered_prepare01.py`: Single, adjacent and separated prepared inserts, updates and removes
+  in follower ingest or leader stable; both directions, unresolved direction changes, commit or
+  rollback, and fixed readers below, at and above prepare. Commits are visible at or below the
+  reader's timestamp, or invisible above it. Stable prepares spanning step-down run with either
+  mirroring setting and roll back. Multi-key prepares begun inside the step-down window run with
+  either mirroring setting and can commit or roll back.
+- `test_layered_async_stepdown24.py`: Shared-key reversals, repeated reverse conflicts followed by
+  returning to the original direction, and repeated reversals around an unresolved prepare, with
+  either mirroring setting and both scan directions. Mirrored prepares can block alternate
+  repositioning as well as iteration.
+- `test_layered_async_stepdown16.py`: Inclusive and exclusive bounds, missing bound keys, simultaneous
+  lower/upper bounds and a range containing only the prepared key; repeated retries and direction
+  changes; both directions, commit or rollback where supported, either mirroring setting, exhausted
+  alternates and actual single-constituent cursors. Initial bounded positioning can conflict before
+  returning the readable prefix.
+- `test_layered_prepare02.py`: Forward and reverse recovery after conflicting `search()` or
+  `search_near()`, including a preceding iteration conflict. Ordinary followers also compare
+  subsequent search, update, remove, modify, reserve and reset operations, and iteration on the same
+  cursor, with an ordinary non-layered cursor.
+
+These are focused combinations, not a Cartesian product of every cursor operation and configuration.
+Transactions spanning the step-down announcement are never committed. Changing a read timestamp
+mid-scan is excluded; see WT-17960. Bounds updates on positioned or prepare-blocked cursors, rejection
+preserving an existing range, and clearing bounds belong to the separate WT-19100 bounds API work.
+Search recovery on ordinary followers is independent of reopening stable after a role change.
+
 */
