@@ -1007,15 +1007,32 @@ kv_workload_generator::generate_key(table_context_ptr table, op_category op)
 data_value
 kv_workload_generator::generate_absent_key(table_context_ptr table)
 {
+    /*
+     * Keys the generator inserts are drawn from [0, max] ([1, max] for record numbers), and the
+     * random draw is inclusive of both bounds, so the absent range must start one past the maximum.
+     * Guard against the configured maximum wrapping the range computation: if there is no room
+     * above the insert range, fall back to a random key.
+     */
     const char *f = table->key_format().c_str();
     switch (f[0]) {
-    case 'Q':
-        return data_value(_random.next_uint64(_spec.max_value_uint64, 2 * _spec.max_value_uint64));
-    case 'r':
-        return data_value(_random.next_uint64(_spec.max_recno + 1, 2 * _spec.max_recno));
+    case 'Q': {
+        uint64_t lo = _spec.max_value_uint64 + 1;
+        if (lo == 0)
+            break;
+        uint64_t hi = lo + std::min(_spec.max_value_uint64, UINT64_MAX - lo);
+        return data_value(_random.next_uint64(lo, hi));
+    }
+    case 'r': {
+        uint64_t lo = _spec.max_recno + 1;
+        if (lo == 0)
+            break;
+        uint64_t hi = lo + std::min(_spec.max_recno, UINT64_MAX - lo);
+        return data_value(_random.next_uint64(lo, hi));
+    }
     default:
-        return random_data_value(table->key_format());
+        break;
     };
+    return random_data_value(table->key_format());
 }
 
 /*
