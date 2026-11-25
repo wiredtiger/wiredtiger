@@ -65,6 +65,10 @@ Reversing after an alternate-positioning conflict re-reads both constituents inc
 last returned key, so updates and removals by the same transaction are visible. If this re-read
 conflicts, its saved key remains the anchor for the next attempt.
 
+Setting bounds is rejected while either constituent retains a position, including after a prepare
+conflict; clearing bounds remains allowed. A failed bound change preserves the previous bounds on
+the layered cursor and its constituents.
+
 Reopening blocked stable on a role change closes the cursor retaining its key. If ingest is current
 and retains a usable key, readable or prepare-blocked, invalidating the iteration flags makes stable
 reposition from ingest. Otherwise, the layered cursor saves the blocked key and direction until both
