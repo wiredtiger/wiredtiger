@@ -2693,6 +2693,7 @@ void
 Palite::initialize_interface()
 {
     pl_add_reference = palite_add_reference;
+    pl_abandon_checkpoint = NULL;
     pl_abandon_checkpoint_ext = palite_abandon_checkpoint_ext;
     pl_complete_checkpoint = palite_complete_checkpoint;
     pl_get_complete_checkpoint = palite_get_complete_checkpoint;

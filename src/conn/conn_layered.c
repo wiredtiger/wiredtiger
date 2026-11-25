@@ -1807,6 +1807,9 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
      */
     skipped = false;
     if (disagg->npage_log->page_log->pl_abandon_checkpoint_ext != NULL) {
+        WT_ASSERT_ALWAYS(session, disagg->npage_log->page_log->pl_abandon_checkpoint == NULL,
+          "Both pl_abandon_checkpoint and pl_abandon_checkpoint_ext cannot be non-NULL at the same "
+          "time");
         /* A connection with no installed or written checkpoint has nothing to abandon. */
         uint64_t last_checkpoint_meta_lsn =
           __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn);
