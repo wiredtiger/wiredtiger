@@ -738,6 +738,9 @@ struct __wt_cursor {
     /*!
      * Set range bounds on the cursor.
      *
+     * Setting bounds requires an unpositioned cursor; attempting to set bounds on a positioned
+     * cursor returns \c EINVAL. Clearing bounds is allowed on a positioned cursor.
+     *
      * @param cursor the cursor handle
      * @configstart{WT_CURSOR.bound, see dist/api_data.py}
      * @config{action, configures whether this call into the API will set or clear range bounds on
