@@ -4010,7 +4010,6 @@ static const int __stats_connection_otel_counters[] = {
   WT_STAT_CONN_EVICTION_APP_FAIL,
   WT_STAT_CONN_CACHE_READ,
   WT_STAT_CONN_CACHE_PAGES_REQUESTED,
-  WT_STAT_CONN_CHECKPOINT_TIME_RECENT,
   WT_STAT_CONN_CURSOR_INSERT,
 };
 
@@ -4022,6 +4021,7 @@ static const int __stats_connection_otel_gauges[] = {
   WT_STAT_CONN_CACHE_BYTES_MAX,
   WT_STAT_CONN_CACHE_PAGES_INUSE,
   WT_STAT_CONN_CACHE_BYTES_DIRTY,
+  WT_STAT_CONN_CHECKPOINT_TIME_RECENT,
   WT_STAT_CONN_DH_CONN_HANDLE_COUNT,
   WT_STAT_CONN_DISAGG_SCHEMA_AWAITING_CHECKPOINT_OLDEST,
   WT_STAT_CONN_DISAGG_SCHEMA_AWAITING_PUBLISH_OLDEST,
@@ -5207,7 +5207,6 @@ __stat_connection_clear_counters(WT_CONNECTION_STATS *stats)
     stats->eviction_app_fail = 0;
     stats->cache_read = 0;
     stats->cache_pages_requested = 0;
-    stats->checkpoint_time_recent = 0;
     stats->cursor_insert = 0;
 }
 
@@ -5223,6 +5222,7 @@ __stat_connection_clear_gauges(WT_CONNECTION_STATS *stats)
     /* not clearing cache_bytes_max */
     /* not clearing cache_pages_inuse */
     /* not clearing cache_bytes_dirty */
+    /* not clearing checkpoint_time_recent */
     /* not clearing dh_conn_handle_count */
     /* not clearing disagg_schema_awaiting_checkpoint_oldest */
     /* not clearing disagg_schema_awaiting_publish_oldest */
