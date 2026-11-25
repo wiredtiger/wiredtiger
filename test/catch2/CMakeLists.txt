@@ -119,14 +119,6 @@ else()
     )
 endif()
 
-# These tests require the custom RW-lock implementation or exact writer-queue reporting.
-if(CMAKE_BUILD_TYPE_UPPER STREQUAL "TSAN")
-    list(REMOVE_ITEM unittests
-        misc_tests/test_evict_clear_walks.cpp
-        misc_tests/test_rwlock_writer_waiting.cpp
-    )
-endif()
-
 # FIXME-WT-14051: Live restore is not supported on Windows
 # Palite extension tests require shared library loading not supported on Windows
 if(NOT WT_WIN)
