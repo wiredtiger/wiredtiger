@@ -86,6 +86,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     truncate = 0.005;
 
     blind_remove = 0.5;
+    blind_remove_absent = 0.25;
 
     checkpoint = 0.02;
     checkpoint_crash = 0.002;
@@ -480,11 +481,19 @@ kv_workload_generator::generate_transaction(size_t seq_no)
             probability_case(_spec.remove)
             {
                 table_context_ptr table = choose_table(txn_ptr);
-                data_value key = generate_key(table, op_category::remove);
-                table->remove_key(key);
 
                 /* Blind removes are supported only on layered tables, i.e., followers here. */
                 bool blind = !_database_config.leader && _random.next_float() < _spec.blind_remove;
+
+                /*
+                 * Removing a key that never existed is the failure class that broke the first blind
+                 * remove implementation, so generate such keys by construction rather than relying
+                 * on a random key missing the used-key set.
+                 */
+                data_value key = blind && _random.next_float() < _spec.blind_remove_absent ?
+                  generate_absent_key(table) :
+                  generate_key(table, op_category::remove);
+                table->remove_key(key);
                 txn << operation::remove(table->id(), txn_id, key, blind);
             }
             probability_case(_spec.set_commit_timestamp)
@@ -913,6 +922,26 @@ kv_workload_generator::generate_key(table_context_ptr table, op_category op)
 
     /* Otherwise generate a random key. It's okay if the key already exists. */
     return random_data_value(table->key_format());
+}
+
+/*
+ * kv_workload_generator::generate_absent_key --
+ *     Generate a key that is guaranteed to have never been inserted into the table, by drawing from
+ *     above the key range the generator uses for inserts. Fall back to a random key for key formats
+ *     with a domain too small to have an unused range.
+ */
+data_value
+kv_workload_generator::generate_absent_key(table_context_ptr table)
+{
+    const char *f = table->key_format().c_str();
+    switch (f[0]) {
+    case 'Q':
+        return data_value(_random.next_uint64(_spec.max_value_uint64, 2 * _spec.max_value_uint64));
+    case 'r':
+        return data_value(_random.next_uint64(_spec.max_recno + 1, 2 * _spec.max_recno));
+    default:
+        return random_data_value(table->key_format());
+    };
 }
 
 /*

@@ -120,6 +120,9 @@ struct kv_workload_generator_spec {
     /* The probability of a remove being blind, on databases that support it. */
     float blind_remove;
 
+    /* The probability of a blind remove targeting a key that is guaranteed to never exist. */
+    float blind_remove_absent;
+
     /* Probabilities of special operations. */
     float checkpoint;
     float checkpoint_crash;
@@ -540,6 +543,14 @@ protected:
      *     Generate a key.
      */
     data_value generate_key(table_context_ptr table, op_category op = op_category::none);
+
+    /*
+     * kv_workload_generator::generate_absent_key --
+     *     Generate a key that is guaranteed to have never been inserted into the table, by drawing
+     *     from above the key range the generator uses for inserts. Fall back to a random key for
+     *     key formats with a domain too small to have an unused range.
+     */
+    data_value generate_absent_key(table_context_ptr table);
 
     /*
      * kv_workload_generator::generate_transaction --
