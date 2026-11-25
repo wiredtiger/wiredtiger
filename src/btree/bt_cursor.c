@@ -1306,7 +1306,7 @@ done:
  *     even if there is no value visible to the transaction, an update could still conflict.
  */
 static int
-__curfile_update_check(WT_CURSOR_BTREE *cbt)
+__curfile_update_check(WT_CURSOR_BTREE *cbt, u_int modify_type)
 {
     WT_BTREE *btree;
     WT_PAGE *page;
@@ -1327,15 +1327,15 @@ __curfile_update_check(WT_CURSOR_BTREE *cbt)
       page->modify->mod_row_update != NULL)
         upd = page->modify->mod_row_update[cbt->slot];
 
-    return (__wt_txn_modify_check(session, cbt, upd, NULL, WT_UPDATE_STANDARD));
+    return (__wt_txn_modify_check(session, cbt, upd, NULL, modify_type));
 }
 
 /*
  * __wt_btcur_remove --
- *     Remove a record from the tree.
+ *     Remove a record from the tree, optionally succeeding when it is absent.
  */
 int
-__wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
+__wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned, bool blind_remove)
 {
     WT_CURFILE_STATE state;
     WT_CURSOR *cursor;
@@ -1354,6 +1354,18 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
+
+    if (blind_remove && positioned) {
+        WT_ERR(__wt_txn_autocommit_check(session));
+        cbt->compare = 0;
+        /* Detect a no-op before page release or row-modify cleanup can discard the position. */
+        ret = __curfile_update_check(cbt, WT_UPDATE_TOMBSTONE);
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
+            goto done;
+        }
+        WT_ERR(ret);
+    }
 
     /*
      * If remove is positioned to an on-page key, the remove doesn't require another search. There's
@@ -1377,6 +1389,9 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
         ret = __cursor_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
         if (ret == 0)
             goto done;
+        /* Modify cleanup may have discarded the position. */
+        if (blind_remove && positioned && ret == WT_NOTFOUND)
+            ret = WT_ROLLBACK;
         goto err;
     }
 
@@ -1399,13 +1414,15 @@ retry:
          * If we find a matching record, check whether an update would conflict. Do this before
          * checking if the update is visible in __wti_cursor_valid, or we can miss conflicts.
          */
-        WT_ERR(__curfile_update_check(cbt));
+        WT_ERR(__curfile_update_check(cbt, WT_UPDATE_STANDARD));
         WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wti_cursor_valid(cbt, &valid, true));
         WT_ERR(ret);
         if (!valid)
             WT_ERR(WT_NOTFOUND);
 
         ret = __cursor_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
+        if (blind_remove && positioned && ret == WT_NOTFOUND)
+            ret = WT_ROLLBACK;
     } else
         WT_ERR(WT_NOTFOUND);
 
@@ -1413,6 +1430,11 @@ err:
     if (ret == WT_RESTART) {
         __cursor_restart(session, &yield_count, &sleep_usecs);
         goto retry;
+    }
+
+    if (blind_remove && ret == WT_NOTFOUND) {
+        /* A positioned remove must not succeed on a different key. */
+        ret = positioned && cbt->compare != 0 ? WT_ROLLBACK : 0;
     }
 
     if (ret == 0) {
@@ -1538,7 +1560,7 @@ retry:
      * __wti_cursor_valid, or we can miss conflicts.
      */
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
-        WT_ERR(__curfile_update_check(cbt));
+        WT_ERR(__curfile_update_check(cbt, WT_UPDATE_STANDARD));
         if (cbt->compare == 0) {
             WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wti_cursor_valid(cbt, &valid, false));
             WT_ERR(ret);
@@ -1733,7 +1755,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
             __wt_txn_cursor_op(session);
             WT_ERR(__cursor_search(cbt, cbt->ref, &leaf_found, false));
             if (leaf_found && cbt->compare == 0) {
-                WT_ERR(__curfile_update_check(cbt));
+                WT_ERR(__curfile_update_check(cbt, WT_UPDATE_STANDARD));
                 WT_ERR(__wti_cursor_valid(cbt, &valid, false));
             }
         }
@@ -1744,7 +1766,7 @@ retry:
             WT_ERR(__cursor_search(cbt, NULL, NULL, false));
             if (cbt->compare != 0)
                 WT_ERR(WT_NOTFOUND);
-            WT_ERR(__curfile_update_check(cbt));
+            WT_ERR(__curfile_update_check(cbt, WT_UPDATE_STANDARD));
             WT_ERR(__wti_cursor_valid(cbt, &valid, false));
             if (!valid)
                 WT_ERR(WT_NOTFOUND);

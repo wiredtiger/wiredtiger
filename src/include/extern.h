@@ -263,7 +263,7 @@ extern int __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
+extern int __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned, bool blind_remove)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_reserve(WT_CURSOR_BTREE *cbt, bool overwrite)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

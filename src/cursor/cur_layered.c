@@ -3699,6 +3699,8 @@ __clayered_remove_from_stable(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_CURSOR *const c_stable = op->stable;
+    WT_DECL_RET;
+    bool blind_remove;
 
     /* There is no content on the ingest table. We must be positioned on the stable table. */
     if (!positioned)
@@ -3706,7 +3708,16 @@ __clayered_remove_from_stable(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     else
         WT_ASSERT(session, F_ISSET(c_stable, WT_CURSTD_KEY_INT));
 
-    WT_RET(c_stable->remove(c_stable));
+    /* FIXME-WT-18976: Enable blind removes for mirrored writes. */
+    blind_remove = op->write_target == WTI_CLAYERED_WRITE_STABLE &&
+      F_ISSET(&clayered->iface, WT_CURSTD_BLIND_REMOVE);
+    WT_ASSERT(session, !F_ISSET(c_stable, WT_CURSTD_BLIND_REMOVE));
+    if (blind_remove)
+        F_SET(c_stable, WT_CURSTD_BLIND_REMOVE);
+    ret = c_stable->remove(c_stable);
+    if (blind_remove)
+        F_CLR(c_stable, WT_CURSTD_BLIND_REMOVE);
+    WT_RET(ret);
     clayered->current_cursor = c_stable;
 
     return (0);
@@ -4002,6 +4013,9 @@ __clayered_remove(WT_CURSOR *cursor)
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_remove);
     if (op.follower_blind_remove)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_blind_remove_follower);
+    else if (F_ISSET(cursor, WT_CURSTD_BLIND_REMOVE) &&
+      clayered->last_role == WTI_CLAYERED_ROLE_LEADER)
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_blind_remove_leader);
 
 err:
     if (ret != 0) {
