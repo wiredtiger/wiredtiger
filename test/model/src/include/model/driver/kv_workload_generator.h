@@ -117,6 +117,9 @@ struct kv_workload_generator_spec {
     float set_commit_timestamp; /* If allowed. */
     float truncate;
 
+    /* The probability of a remove being blind, on databases that support it. */
+    float blind_remove;
+
     /* Probabilities of special operations. */
     float checkpoint;
     float checkpoint_crash;

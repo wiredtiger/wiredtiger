@@ -60,6 +60,13 @@ protected:
 
     public:
         /*
+         * Cursor slots within a table: the default cursor, the second cursor used by truncate, and
+         * the cursor opened with blind_remove=true.
+         */
+        static constexpr unsigned k_truncate_table_cur_id = 1;
+        static constexpr unsigned k_blind_remove_table_cur_id = 2;
+
+        /*
          * session_context::session_context --
          *     Create the session context.
          */
@@ -99,9 +106,11 @@ protected:
         /*
          * session_context::cursor --
          *     Get a cursor. Create one if it does not already exist. Use the second argument to get
-         *     and/or create additional cursors for the given table.
+         *     and/or create additional cursors for the given table. The configuration is used only
+         *     when the cursor is first opened.
          */
-        WT_CURSOR *cursor(table_id_t table_id, unsigned table_cur_id = 0);
+        WT_CURSOR *cursor(
+          table_id_t table_id, unsigned table_cur_id = 0, const char *config = nullptr);
 
     private:
         /*

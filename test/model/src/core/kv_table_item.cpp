@@ -46,17 +46,30 @@ void
 kv_table_item::add_update(std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist)
 {
     std::lock_guard lock_guard(_lock);
-    add_update_nolock(std::move(update), must_exist, must_not_exist);
+    (void)add_update_nolock(std::move(update), must_exist, must_not_exist, false);
+}
+
+/*
+ * kv_table_item::add_update_if_exists --
+ *     Add an update only if the key has a visible value; otherwise return false without modifying
+ *     the item. Transaction conflicts still throw. Used for blind removes.
+ */
+bool
+kv_table_item::add_update_if_exists(std::shared_ptr<kv_update> update)
+{
+    std::lock_guard lock_guard(_lock);
+    return add_update_nolock(std::move(update), false, false, true);
 }
 
 /*
  * kv_table_item::add_update_nolock --
  *     Add an update but without taking a lock (this assumes the caller has it). Throw an exception
- *     on error.
+ *     on error. Return false, without modifying the item, if the key has no visible value and
+ *     skip_if_missing is set.
  */
-void
+bool
 kv_table_item::add_update_nolock(
-  std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist)
+  std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist, bool skip_if_missing)
 {
     kv_update::commit_timestamp_comparator cmp;
 
@@ -103,25 +116,25 @@ kv_table_item::add_update_nolock(
     /* Position the update. */
     auto i = std::upper_bound(_updates.begin(), _updates.end(), update.get(), cmp);
 
-    /* If need be, fail if the key does not exist. */
-    if (must_exist) {
-        if (_updates.empty())
-            throw wiredtiger_exception(WT_NOTFOUND);
-
-        auto j = i;
-        if (j == _updates.begin() || (*(--j))->value() == NONE)
-            throw wiredtiger_exception(WT_NOTFOUND);
-    }
-
-    /* If need be, fail if the key exists. */
-    if (must_not_exist && !_updates.empty()) {
+    /* Check whether the key has a visible value at the update's position. */
+    bool missing = true;
+    if (!_updates.empty()) {
         auto j = i;
         if (j != _updates.begin() && (*(--j))->value() != NONE)
-            throw wiredtiger_exception(WT_DUPLICATE_KEY);
+            missing = false;
     }
+
+    if (missing) {
+        if (skip_if_missing)
+            return false;
+        if (must_exist)
+            throw wiredtiger_exception(WT_NOTFOUND);
+    } else if (must_not_exist)
+        throw wiredtiger_exception(WT_DUPLICATE_KEY);
 
     /* Insert. */
     _updates.insert(i, update);
+    return true;
 }
 
 /*
@@ -328,7 +341,7 @@ kv_table_item::fix_timestamps(
     for (auto &u : to_fix) {
         u->set_timestamps(commit_timestamp, durable_timestamp);
         try {
-            add_update_nolock(u, false, false);
+            (void)add_update_nolock(u, false, false, false);
         } catch (wiredtiger_exception &e) {
             std::ostringstream ss;
             ss << "Unexpected error during the commit of transaction " << txn_id << ": ";

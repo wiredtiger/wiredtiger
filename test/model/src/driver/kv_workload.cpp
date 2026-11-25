@@ -204,9 +204,15 @@ parse(const char *str)
         return prepare_transaction(parse_uint64(args[0]), parse_uint64(args[1]));
     }
     if (name == "remove") {
-        CHECK_NUM_ARGS(3);
+        CHECK_NUM_ARGS_RANGE(3, 4);
+        bool blind = false;
+        if (args.size() == 4) {
+            if (args[3] != "blind")
+                throw model_exception("The fourth argument to \"remove\" must be \"blind\"");
+            blind = true;
+        }
         return remove(
-          parse_uint64(args[0]), parse_uint64(args[1]), data_value(parse_uint64(args[2])));
+          parse_uint64(args[0]), parse_uint64(args[1]), data_value(parse_uint64(args[2])), blind);
     }
     if (name == "restart") {
         CHECK_NUM_ARGS(0);

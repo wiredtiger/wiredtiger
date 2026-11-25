@@ -85,6 +85,8 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     set_commit_timestamp = 0.05;
     truncate = 0.005;
 
+    blind_remove = 0.5;
+
     checkpoint = 0.02;
     checkpoint_crash = 0.002;
     checkpoint_crash_trigger = 0.001;
@@ -480,7 +482,10 @@ kv_workload_generator::generate_transaction(size_t seq_no)
                 table_context_ptr table = choose_table(txn_ptr);
                 data_value key = generate_key(table, op_category::remove);
                 table->remove_key(key);
-                txn << operation::remove(table->id(), txn_id, key);
+
+                /* Blind removes are supported only on layered tables, i.e., followers here. */
+                bool blind = !_database_config.leader && _random.next_float() < _spec.blind_remove;
+                txn << operation::remove(table->id(), txn_id, key, blind);
             }
             probability_case(_spec.set_commit_timestamp)
             {

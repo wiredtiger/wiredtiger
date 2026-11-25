@@ -910,13 +910,14 @@ operator<<(std::ostream &out, const prepare_transaction &op)
  */
 struct remove : public with_txn_id, public with_table_id {
     data_value key;
+    bool blind;
 
     /*
      * remove::remove --
      *     Create the operation.
      */
-    inline remove(table_id_t table_id, txn_id_t txn_id, const data_value &key)
-        : with_txn_id(txn_id), with_table_id(table_id), key(key)
+    inline remove(table_id_t table_id, txn_id_t txn_id, const data_value &key, bool blind = false)
+        : with_txn_id(txn_id), with_table_id(table_id), key(key), blind(blind)
     {
     }
 
@@ -927,7 +928,8 @@ struct remove : public with_txn_id, public with_table_id {
     inline bool
     operator==(const remove &other) const noexcept
     {
-        return table_id == other.table_id && txn_id == other.txn_id && key == other.key;
+        return table_id == other.table_id && txn_id == other.txn_id && key == other.key &&
+          blind == other.blind;
     }
 
     /*
@@ -948,7 +950,10 @@ struct remove : public with_txn_id, public with_table_id {
 inline std::ostream &
 operator<<(std::ostream &out, const remove &op)
 {
-    out << "remove(" << op.table_id << ", " << op.txn_id << ", " << op.key << ")";
+    out << "remove(" << op.table_id << ", " << op.txn_id << ", " << op.key;
+    if (op.blind)
+        out << ", blind";
+    out << ")";
     return out;
 }
 

@@ -223,6 +223,75 @@ test_transaction_basic(void)
 }
 
 /*
+ * test_transaction_blind_remove --
+ *     Test blind removes: a remove succeeds without writing anything when the key has no visible
+ *     value, and other errors are unchanged.
+ */
+static void
+test_transaction_blind_remove(void)
+{
+    model::kv_database database;
+    model::kv_table_ptr table = database.create_table("table");
+
+    /* Transactions. */
+    model::kv_transaction_ptr txn1, txn2;
+
+    /* A blind remove of a key that never existed succeeds and writes nothing. */
+    txn1 = database.begin_transaction();
+    testutil_check(table->remove(txn1, key1, true));
+    txn1->commit(10);
+    testutil_assert(table->get(key1) == model::NONE);
+
+    /* A plain remove of the same key still returns WT_NOTFOUND. */
+    txn1 = database.begin_transaction();
+    testutil_assert(table->remove(txn1, key1) == WT_NOTFOUND);
+    txn1->rollback();
+
+    /* A blind remove of an existing key deletes it. */
+    txn1 = database.begin_transaction();
+    testutil_check(table->insert(txn1, key2, value2));
+    txn1->commit(20);
+    txn1 = database.begin_transaction();
+    testutil_check(table->remove(txn1, key2, true));
+    txn1->commit(30);
+    testutil_assert(table->get(key2) == model::NONE);
+
+    /* A blind remove of an already-deleted key succeeds and writes nothing. */
+    txn1 = database.begin_transaction();
+    testutil_check(table->remove(txn1, key2, true));
+    txn1->commit(40);
+    testutil_assert(table->get(key2) == model::NONE);
+    txn1 = database.begin_transaction();
+    testutil_assert(table->remove(txn1, key2) == WT_NOTFOUND);
+    txn1->rollback();
+
+    /* The key can be reinserted and blind-removed again. */
+    txn1 = database.begin_transaction();
+    testutil_check(table->insert(txn1, key2, value3));
+    txn1->commit(50);
+    testutil_assert(table->get(key2) == value3);
+    txn1 = database.begin_transaction();
+    testutil_check(table->remove(txn1, key2, true));
+    txn1->commit(60);
+    testutil_assert(table->get(key2) == model::NONE);
+
+    /* A blind remove conflicting with an uncommitted update fails with WT_ROLLBACK. */
+    txn1 = database.begin_transaction();
+    txn2 = database.begin_transaction();
+    testutil_check(table->insert(txn1, key3, value1));
+    testutil_assert(table->remove(txn2, key3, true) == WT_ROLLBACK);
+    txn1->commit(70);
+    txn2->rollback();
+    testutil_assert(table->get(key3) == value1);
+
+    /* A blind remove in a rolled-back transaction has no effect. */
+    txn1 = database.begin_transaction();
+    testutil_check(table->remove(txn1, key3, true));
+    txn1->rollback();
+    testutil_assert(table->get(key3) == value1);
+}
+
+/*
  * test_transaction_basic_wt --
  *     The basic test of the transaction model, also in WiredTiger.
  */
@@ -1295,6 +1364,7 @@ main(int argc, char *argv[])
         ret = EXIT_SUCCESS;
         test_transaction_basic();
         test_transaction_basic_wt();
+        test_transaction_blind_remove();
         test_transaction_column_wt();
         test_transaction_prepared();
         test_transaction_prepared_wt();
