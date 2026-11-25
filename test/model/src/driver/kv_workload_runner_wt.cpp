@@ -748,8 +748,13 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
         model::timestamp_t checkpoint_timestamp;
         bool picked_up = wt_disagg_pick_up_latest_checkpoint(_connection, checkpoint_timestamp);
 
-        /* Step up. */
-        if (database_config.leader) {
+        /*
+         * Step up. With leader_first_open, only the first open is a leader. Closing it publishes a
+         * checkpoint, so the follower opens that come after it have stable content to pick up.
+         */
+        bool leader =
+          database_config.leader || (database_config.leader_first_open && _state->num_opens == 0);
+        if (leader) {
             ret = _connection->reconfigure(_connection, "disaggregated=(role=leader)");
             if (ret != 0)
                 throw wiredtiger_exception("Cannot reconfigure WiredTiger", ret);
@@ -777,6 +782,8 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
                 throw wiredtiger_exception("Cannot set the stable timestamp", ret);
         }
     }
+
+    _state->num_opens++;
 }
 
 /*
@@ -791,7 +798,14 @@ kv_workload_runner_wt::step_up_if_follower()
         return;
 
     kv_database_config database_config = kv_database_config::from_string(_state->database_config);
-    if (!database_config.disaggregated || database_config.leader)
+    if (!database_config.disaggregated)
+        return;
+
+    /*
+     * The connection is already a leader if the configuration says so, or if this is still the
+     * first open under leader_first_open.
+     */
+    if (database_config.leader || (database_config.leader_first_open && _state->num_opens == 1))
         return;
 
     int ret = _connection->reconfigure(_connection, "disaggregated=(role=leader)");

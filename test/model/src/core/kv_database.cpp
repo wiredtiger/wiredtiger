@@ -53,6 +53,7 @@ kv_database_config::kv_database_config()
 {
     disaggregated = false;
     leader = true;
+    leader_first_open = false;
     logging = false;
 }
 
@@ -72,6 +73,8 @@ kv_database_config::from_string(const std::string &config)
             r.disaggregated = m.get_bool(k.c_str());
         else if (k == "leader")
             r.leader = m.get_bool(k.c_str());
+        else if (k == "leader_first_open")
+            r.leader_first_open = m.get_bool(k.c_str());
         else if (k == "logging")
             r.logging = m.get_bool(k.c_str());
         else

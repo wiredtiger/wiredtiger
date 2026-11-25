@@ -171,6 +171,9 @@ protected:
         /* Top-level configuration specified by the workload (protected by the connection lock). */
         char database_config[256];
 
+        /* The number of times the database has been opened (protected by the connection lock). */
+        size_t num_opens;
+
         /* WiredTiger configuration specified by the workload (protected by the connection lock). */
         char connection_config[256];
         char table_config[256];
