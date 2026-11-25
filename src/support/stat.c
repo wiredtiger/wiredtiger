@@ -332,6 +332,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: modify key and value bytes affected",
   "cursor: modify value bytes modified",
   "cursor: next calls",
+  "cursor: number of memory allocations performed in service of cursor next raw key value batch",
+  "cursor: number of results requested by callers of cursor next raw key value batch",
   "cursor: number of results returned by cursor next raw key value batch",
   "cursor: open cursor count",
   "cursor: open cursor time application (usecs)",
@@ -842,6 +844,8 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_CURSOR_MODIFY_BYTES,
   WT_STAT_DSRC_CURSOR_MODIFY_BYTES_TOUCH,
   WT_STAT_DSRC_CURSOR_NEXT,
+  WT_STAT_DSRC_CURSOR_NEXT_RAW_KV_BATCH_ALLOCATIONS,
+  WT_STAT_DSRC_CURSOR_NEXT_RAW_KV_BATCH_REQUESTED,
   WT_STAT_DSRC_CURSOR_NEXT_RAW_KV_BATCH_RESULT,
   WT_STAT_DSRC_CURSOR_OPEN_COUNT,
   WT_STAT_DSRC_CURSOR_OPEN_TIME_USER_USECS,
@@ -1393,6 +1397,8 @@ __stat_dsrc_clear_none(WT_DSRC_STATS *stats)
     stats->cursor_modify_bytes = 0;
     stats->cursor_modify_bytes_touch = 0;
     stats->cursor_next = 0;
+    stats->cursor_next_raw_kv_batch_allocations = 0;
+    stats->cursor_next_raw_kv_batch_requested = 0;
     stats->cursor_next_raw_kv_batch_result = 0;
     /* not clearing cursor_open_count */
     /* not clearing cursor_open_time_user_usecs */
@@ -1951,6 +1957,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_modify_bytes += from->cursor_modify_bytes;
     to->cursor_modify_bytes_touch += from->cursor_modify_bytes_touch;
     to->cursor_next += from->cursor_next;
+    to->cursor_next_raw_kv_batch_allocations += from->cursor_next_raw_kv_batch_allocations;
+    to->cursor_next_raw_kv_batch_requested += from->cursor_next_raw_kv_batch_requested;
     to->cursor_next_raw_kv_batch_result += from->cursor_next_raw_kv_batch_result;
     to->cursor_open_count += from->cursor_open_count;
     to->cursor_open_time_user_usecs += from->cursor_open_time_user_usecs;
@@ -2546,6 +2554,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_modify_bytes += WT_STAT_DSRC_READ(from, cursor_modify_bytes);
     to->cursor_modify_bytes_touch += WT_STAT_DSRC_READ(from, cursor_modify_bytes_touch);
     to->cursor_next += WT_STAT_DSRC_READ(from, cursor_next);
+    to->cursor_next_raw_kv_batch_allocations +=
+      WT_STAT_DSRC_READ(from, cursor_next_raw_kv_batch_allocations);
+    to->cursor_next_raw_kv_batch_requested +=
+      WT_STAT_DSRC_READ(from, cursor_next_raw_kv_batch_requested);
     to->cursor_next_raw_kv_batch_result += WT_STAT_DSRC_READ(from, cursor_next_raw_kv_batch_result);
     to->cursor_open_count += WT_STAT_DSRC_READ(from, cursor_open_count);
     to->cursor_open_time_user_usecs += WT_STAT_DSRC_READ(from, cursor_open_time_user_usecs);
@@ -3417,6 +3429,8 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor update key and value bytes",
   "cursor: cursor update value size change",
   "cursor: cursors reused from cache",
+  "cursor: number of memory allocations performed in service of cursor next raw key value batch",
+  "cursor: number of results requested by callers of cursor next raw key value batch",
   "cursor: number of results returned by cursor next raw key value batch",
   "cursor: open cursor count",
   "cursor: open cursor time application (usecs)",
@@ -4602,6 +4616,8 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CURSOR_UPDATE_BYTES,
   WT_STAT_CONN_CURSOR_UPDATE_BYTES_CHANGED,
   WT_STAT_CONN_CURSOR_REOPEN,
+  WT_STAT_CONN_CURSOR_NEXT_RAW_KV_BATCH_ALLOCATIONS,
+  WT_STAT_CONN_CURSOR_NEXT_RAW_KV_BATCH_REQUESTED,
   WT_STAT_CONN_CURSOR_NEXT_RAW_KV_BATCH_RESULT,
   WT_STAT_CONN_CURSOR_OPEN_COUNT,
   WT_STAT_CONN_CURSOR_OPEN_TIME_USER_USECS,
@@ -5807,6 +5823,8 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
     stats->cursor_reopen = 0;
+    stats->cursor_next_raw_kv_batch_allocations = 0;
+    stats->cursor_next_raw_kv_batch_requested = 0;
     stats->cursor_next_raw_kv_batch_result = 0;
     /* not clearing cursor_open_count */
     /* not clearing cursor_open_time_user_usecs */
@@ -7134,6 +7152,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_update_bytes += WT_STAT_CONN_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_CONN_READ(from, cursor_update_bytes_changed);
     to->cursor_reopen += WT_STAT_CONN_READ(from, cursor_reopen);
+    to->cursor_next_raw_kv_batch_allocations +=
+      WT_STAT_CONN_READ(from, cursor_next_raw_kv_batch_allocations);
+    to->cursor_next_raw_kv_batch_requested +=
+      WT_STAT_CONN_READ(from, cursor_next_raw_kv_batch_requested);
     to->cursor_next_raw_kv_batch_result += WT_STAT_CONN_READ(from, cursor_next_raw_kv_batch_result);
     to->cursor_open_count += WT_STAT_CONN_READ(from, cursor_open_count);
     to->cursor_open_time_user_usecs += WT_STAT_CONN_READ(from, cursor_open_time_user_usecs);
