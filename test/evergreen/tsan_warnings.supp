@@ -121,15 +121,5 @@ race:__tombstone_update_alloc
 race:__wt_btcur_modify
 race:__wt_cursor_dhandle_decr_use
 
-# FIXME-WT-19155: Remove these temporary truncate-list suppressions after the issue is resolved.
-race:__txn_insert_truncate_entry_helper
-race:__truncate_search
-race:__truncate_entry_copy_keys
-race:__wt_layered_table_truncate_detect_non_ingest_write_conflict
-race:__truncate_entry_remove
-race:__layered_table_truncate_gc
-race:__wt_layered_table_truncate_clear
-race:__layered_build_sorted_truncates
-
 # FIXME-WT-19233: Remove this temporary schema-epoch lock-order suppression after investigation.
 deadlock:__disagg_btree_stamp_create_epoch
