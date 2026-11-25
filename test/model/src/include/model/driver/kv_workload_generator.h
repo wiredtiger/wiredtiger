@@ -85,6 +85,12 @@ struct kv_workload_generator_spec {
     /* Probability of running as a follower, if disagg mode is enabled. */
     float follower;
 
+    /*
+     * Probability of a follower run starting with a leader phase, whose shutdown checkpoint gives
+     * the follower stable content to work against.
+     */
+    float follower_seed;
+
     /* The minimum and maximum number of tables. */
     size_t min_tables;
     size_t max_tables;
@@ -551,6 +557,13 @@ protected:
      *     key formats with a domain too small to have an unused range.
      */
     data_value generate_absent_key(table_context_ptr table);
+
+    /*
+     * kv_workload_generator::generate_sequences --
+     *     Generate the given number of operation sequences, updating the checkpoint and stable
+     *     timestamp bookkeeping shared with the caller.
+     */
+    void generate_sequences(uint64_t count, bool &has_checkpoint, bool &has_stable_timestamp);
 
     /*
      * kv_workload_generator::generate_transaction --

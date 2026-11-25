@@ -280,6 +280,7 @@ update_spec(model::kv_workload_generator_spec &spec, std::string &conn_config,
 
         UPDATE_SPEC(disaggregated, float);
         UPDATE_SPEC(follower, float);
+        UPDATE_SPEC(follower_seed, float);
 
         UPDATE_SPEC(min_tables, uint64);
         UPDATE_SPEC(max_tables, uint64);
