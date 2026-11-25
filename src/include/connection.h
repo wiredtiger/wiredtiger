@@ -463,8 +463,8 @@ struct __wt_disaggregated_storage {
      */
     TAILQ_HEAD(__wt_disagg_shared_metadata_qh, __wt_disagg_metadata_op) shared_metadata_qh;
     WT_SPINLOCK shared_metadata_queue_lock;
-    struct __wt_disagg_metadata_bucket *shared_metadata_hash; /* Bucket heads, indexed by name */
-    uint32_t shared_metadata_hash_slots;                      /* Power-of-two bucket count */
+    WT_DISAGG_METADATA_BUCKET *shared_metadata_hash; /* Bucket heads, indexed by name */
+    uint32_t shared_metadata_hash_slots;             /* Bucket count */
 
     /* Shared metadata queue statistics. */
     wt_shared uint64_t schema_awaiting_publish;

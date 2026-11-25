@@ -272,23 +272,22 @@ err:
  *     shared metadata queue.
  */
 static bool
-__layered_create_has_following_remove(
-  WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn, WT_DISAGG_METADATA_OP *create_entry)
+__layered_create_has_following_remove(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *create_entry)
 {
-    WT_DISAGG_METADATA_OP *tmp;
+    WT_DISAGG_METADATA_OP *entry;
 
-    WT_UNUSED(conn); /* Only read by the assertion below. */
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    WT_ASSERT_SPINLOCK_OWNED(
+      session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
 
-    for (tmp = __wt_disagg_shared_metadata_queue_next(create_entry); tmp != NULL;
-      tmp = __wt_disagg_shared_metadata_queue_next(tmp)) {
-        if (tmp->metadata_op == WT_SHARED_METADATA_REMOVE &&
-          strcmp(tmp->stable_uri, create_entry->stable_uri) == 0) {
+    for (entry = __wt_disagg_shared_metadata_queue_next(create_entry); entry != NULL;
+      entry = __wt_disagg_shared_metadata_queue_next(entry)) {
+        if (entry->metadata_op == WT_SHARED_METADATA_REMOVE &&
+          strcmp(entry->stable_uri, create_entry->stable_uri) == 0) {
             /*
              * Assert queue ordering: the REMOVE must be at the same or later epoch as the CREATE. A
              * REMOVE at an earlier epoch than the CREATE is a bug in the queue.
              */
-            WT_ASSERT(session, tmp->schema_epoch >= create_entry->schema_epoch);
+            WT_ASSERT(session, entry->schema_epoch >= create_entry->schema_epoch);
             return (true);
         }
     }
@@ -343,7 +342,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session, uint64_t
         WT_ASSERT(session, WT_PREFIX_MATCH(entry->stable_uri, "file:"));
 
         /* Check if the table was dropped. */
-        if (__layered_create_has_following_remove(session, conn, entry)) {
+        if (__layered_create_has_following_remove(session, entry)) {
             __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_DEBUG_2,
               "Skip creating missing stable table \"%s\" with schema epoch %" PRIu64
               " from layered config \"%s\" since it is being dropped",
@@ -448,11 +447,11 @@ __disagg_shared_metadata_queue_free(WT_SESSION_IMPL *session, WT_DISAGG_METADATA
  * __disagg_queue_bucket --
  *     Return the bucket for a table name.
  */
-static WT_INLINE struct __wt_disagg_metadata_bucket *
+static WT_INLINE WT_DISAGG_METADATA_BUCKET *
 __disagg_queue_bucket(WT_DISAGGREGATED_STORAGE *disagg, const char *table_name)
 {
-    return (&disagg->shared_metadata_hash[__wt_hash_city64(table_name, strlen(table_name)) &
-      (disagg->shared_metadata_hash_slots - 1)]);
+    return (&disagg->shared_metadata_hash[__wt_hash_city64(table_name, strlen(table_name)) %
+      disagg->shared_metadata_hash_slots]);
 }
 
 /*
@@ -463,7 +462,7 @@ __disagg_queue_bucket(WT_DISAGGREGATED_STORAGE *disagg, const char *table_name)
 static void
 __disagg_queue_index_insert_newest(WT_DISAGGREGATED_STORAGE *disagg, WT_DISAGG_METADATA_OP *entry)
 {
-    struct __wt_disagg_metadata_bucket *bucket;
+    WT_DISAGG_METADATA_BUCKET *bucket;
 
     bucket = __disagg_queue_bucket(disagg, entry->table_name);
     entry->down = bucket->top;
@@ -1218,16 +1217,16 @@ __disagg_handle_create_remove_pairing(WT_SESSION_IMPL *session, WT_DISAGG_METADA
  *     later CREATE refers to a different table with the same name.
  */
 static bool
-__disagg_remove_is_checkpoint_violation(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn,
-  WT_DISAGG_METADATA_OP *entry, wt_timestamp_t schema_epoch)
+__disagg_remove_is_checkpoint_violation(
+  WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, wt_timestamp_t schema_epoch)
 {
     /* Only a published drop can invalidate the checkpoint. */
     if (entry->metadata_op != WT_SHARED_METADATA_REMOVE ||
       entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED)
         return (false);
 
-    WT_UNUSED(conn); /* Only read by the assertion below. */
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    WT_ASSERT_SPINLOCK_OWNED(
+      session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
 
     /* Check whether a recreated table exists after considering all later operations. */
     WT_DISAGG_METADATA_OP *op;
@@ -1265,13 +1264,12 @@ __disagg_remove_is_checkpoint_violation(WT_SESSION_IMPL *session, WT_CONNECTION_
  *     no such DROP exists.
  */
 static wt_timestamp_t
-__disagg_parked_create_drop_epoch(
-  WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn, WT_DISAGG_METADATA_OP *parked)
+__disagg_parked_create_drop_epoch(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *parked)
 {
     WT_DISAGG_METADATA_OP *entry;
 
-    WT_UNUSED(conn); /* Only read by the assertion below. */
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    WT_ASSERT_SPINLOCK_OWNED(
+      session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
 
     for (entry = __wt_disagg_shared_metadata_queue_first(session); entry != NULL;
       entry = __wt_disagg_shared_metadata_queue_next(entry))
@@ -1433,11 +1431,10 @@ static int
 __disagg_check_epoch_deferral(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry,
   wt_timestamp_t cur_schema_epoch, struct __wt_disagg_shared_metadata_qh *skipped_creates)
 {
-    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_ASSERT_SPINLOCK_OWNED(
+      session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
-    if (__disagg_remove_is_checkpoint_violation(session, conn, entry, cur_schema_epoch)) {
+    if (__disagg_remove_is_checkpoint_violation(session, entry, cur_schema_epoch)) {
         __wt_verbose_level_multi(session, WT_VERB_SCHEMA_EPOCH_DISAGG, WT_VERBOSE_ERROR,
           "API violation: table \"%s\" was dropped at schema epoch %" PRIu64
           " and recreated, above the checkpoint's schema epoch %" PRIu64
@@ -1471,15 +1468,15 @@ static int
 __disagg_parked_creates_panic(WT_SESSION_IMPL *session,
   struct __wt_disagg_shared_metadata_qh *skipped_creates, wt_timestamp_t cur_schema_epoch)
 {
-    WT_CONNECTION_IMPL *conn = S2C(session);
     WT_DISAGG_METADATA_OP *skipped;
     wt_timestamp_t drop_epoch;
     char drop_desc[64];
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    WT_ASSERT_SPINLOCK_OWNED(
+      session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
 
     TAILQ_FOREACH (skipped, skipped_creates, q) {
-        drop_epoch = __disagg_parked_create_drop_epoch(session, conn, skipped);
+        drop_epoch = __disagg_parked_create_drop_epoch(session, skipped);
         if (drop_epoch == WT_SCHEMA_EPOCH_NONE)
             WT_IGNORE_RET(__wt_snprintf(drop_desc, sizeof(drop_desc), "no DROP is queued for it"));
         else if (drop_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED)
