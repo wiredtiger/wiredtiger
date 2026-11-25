@@ -41,7 +41,7 @@
  * number of CPUs (presumably, the application architect has figured out how many CPUs are
  * available). However, inside WiredTiger we don't know when the application creates its threads.
  *
- * For now, we use a fixed number of slots. Ideally, we would approximate the largest number of
+ * By default, we use a fixed number of slots. Ideally, we would approximate the largest number of
  * cores we expect on any machine where WiredTiger might be run, however, we don't want to waste
  * that much memory on smaller machines. As of 2015, machines with more than 24 CPUs are relatively
  * rare.
@@ -49,15 +49,10 @@
  * Default hash table size; use a prime number of buckets rather than assuming a good hash
  * (Reference Sedgewick, Algorithms in C, "Hash Functions").
  *
- * The counter slots are split into two separate counters, one for connection and the other for
- * data-source. This is because we want to be able to independently increase one counter slot
- * without increasing the other, as for example, increasing the data-source counter by a small
- * number would have a greater impact than increasing the connection counter by the same number -
- * depending on the number of dhandles in the system.
- *
+ * Connection statistics use a fixed slot count; statistics_dhandle_buckets configures the
+ * data-source count at connection open, defaulting to 23.
  */
 #define WT_STAT_CONN_COUNTER_SLOTS 23
-#define WT_STAT_DSRC_COUNTER_SLOTS 23
 
 /*
  * WT_STATS_###_SLOT_ID is the thread's slot ID for the array of structures.
@@ -75,7 +70,7 @@
  * is a small, monotonically increasing number.
  */
 #define WT_STATS_CONN_SLOT_ID(session) (((session)->id) % WT_STAT_CONN_COUNTER_SLOTS)
-#define WT_STATS_DSRC_SLOT_ID(session) (((session)->id) % WT_STAT_DSRC_COUNTER_SLOTS)
+#define WT_STATS_DSRC_SLOT_ID(session) (((session)->id) % S2C(session)->stat_dsrc_buckets)
 
 /*
  * Statistic structures are arrays of int64_t's. We have functions to read/write those structures
@@ -141,9 +136,9 @@ __wt_stats_aggregate_conn(void *stats_arg, int slot)
 }
 
 static WT_INLINE int64_t
-__wt_stats_aggregate_dsrc(void *stats_arg, int slot)
+__wt_stats_aggregate_dsrc(void *stats_arg, int slot, u_int num_slots)
 {
-    return (__wt_stats_aggregate_internal(stats_arg, slot, WT_STAT_DSRC_COUNTER_SLOTS));
+    return (__wt_stats_aggregate_internal(stats_arg, slot, num_slots));
 }
 
 /*
@@ -171,14 +166,14 @@ __wt_stats_set_conn(void *stats_arg, int slot, int64_t value)
  * Set a data-source statistic, ordered as the connection version above.
  */
 static WT_INLINE void
-__wt_stats_set_dsrc(void *stats_arg, int slot, int64_t value)
+__wt_stats_set_dsrc(void *stats_arg, int slot, int64_t value, u_int num_slots)
 {
     int64_t **stats;
-    int i;
+    u_int i;
 
     stats = (int64_t **)stats_arg;
     __wt_atomic_store_int64_relaxed(&stats[0][slot], value);
-    for (i = 1; i < WT_STAT_DSRC_COUNTER_SLOTS; i++)
+    for (i = 1; i < num_slots; i++)
         __wt_atomic_store_int64_relaxed(&stats[i][slot], 0);
 }
 
@@ -195,8 +190,9 @@ __wt_stats_set_dsrc(void *stats_arg, int slot, int64_t value)
 
 #define WT_STAT_CONN_READ(stats, fld) \
     __wt_stats_aggregate_conn(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
-#define WT_STAT_DSRC_READ(stats, fld) \
-    __wt_stats_aggregate_dsrc(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
+#define WT_STAT_DSRC_READ(session, stats, fld) \
+    __wt_stats_aggregate_dsrc(                 \
+      stats, WT_STATS_FIELD_TO_OFFSET(stats, fld), S2C(session)->stat_dsrc_buckets)
 #define WT_STAT_SESSION_READ(stats, fld) ((stats)->fld)
 /* The block manager writes these into a shared data-source bucket. */
 #define WT_STAT_WRITE(session, stats, fld, v)                             \
@@ -276,10 +272,11 @@ __wt_stats_set_dsrc(void *stats_arg, int slot, int64_t value)
     } while (0)
 #define WT_STAT_DSRC_DECR(session, fld) WT_STAT_DSRC_DECRV(session, fld, 1)
 
-#define WT_STATP_DSRC_SET(session, stats, fld, value)                                           \
-    do {                                                                                        \
-        if (WT_STAT_ENABLED(session))                                                           \
-            __wt_stats_set_dsrc(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld), (int64_t)(value)); \
+#define WT_STATP_DSRC_SET(session, stats, fld, value)                                          \
+    do {                                                                                       \
+        if (WT_STAT_ENABLED(session))                                                          \
+            __wt_stats_set_dsrc(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld), (int64_t)(value), \
+              S2C(session)->stat_dsrc_buckets);                                                \
     } while (0)
 #define WT_STAT_DSRC_SET(session, fld, value)                                     \
     do {                                                                          \

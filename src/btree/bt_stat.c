@@ -47,7 +47,7 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     WT_BM *bm;
     WT_BTREE *btree;
     WT_DSRC_STATS **stats;
-    uint64_t avg_internal_chain, avg_leaf_chain;
+    uint64_t avg_internal_chain, avg_leaf_chain, internal_delta_pages, leaf_delta_pages;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -77,16 +77,21 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     WT_STATP_DSRC_SET(
       session, stats, compress_precomp_intl_max_page_size, btree->maxintlpage_precomp);
 
-    avg_internal_chain = (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_internal_deltas) == 0 ?
-      0 :
-      (uint64_t)WT_STAT_DSRC_READ(stats, rec_page_delta_internal) /
-        (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_internal_deltas);
-    avg_leaf_chain = (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_leaf_deltas) == 0 ?
-      0 :
-      (uint64_t)WT_STAT_DSRC_READ(stats, rec_page_delta_leaf) /
-        (uint64_t)WT_STAT_DSRC_READ(stats, rec_pages_with_leaf_deltas);
+    /* Use the same denominator for the zero check and division. */
+    internal_delta_pages =
+      (uint64_t)WT_STAT_DSRC_READ(session, stats, rec_pages_with_internal_deltas);
+    avg_internal_chain = 0;
+    if (internal_delta_pages != 0)
+        avg_internal_chain = (uint64_t)WT_STAT_DSRC_READ(session, stats, rec_page_delta_internal) /
+          internal_delta_pages;
     WT_STATP_DSRC_SET(
       session, stats, rec_average_internal_page_delta_chain_length, avg_internal_chain);
+
+    leaf_delta_pages = (uint64_t)WT_STAT_DSRC_READ(session, stats, rec_pages_with_leaf_deltas);
+    avg_leaf_chain = 0;
+    if (leaf_delta_pages != 0)
+        avg_leaf_chain =
+          (uint64_t)WT_STAT_DSRC_READ(session, stats, rec_page_delta_leaf) / leaf_delta_pages;
     WT_STATP_DSRC_SET(session, stats, rec_average_leaf_page_delta_chain_length, avg_leaf_chain);
 
     /*
@@ -162,9 +167,9 @@ err:
      * partial walk produces unreliable counts.
      */
     if ((ret == 0 || ret == WT_NOTFOUND) && btree->type == BTREE_ROW) {
-        uint64_t exact = (uint64_t)WT_STAT_DSRC_READ(stats, btree_row_leaf);
+        uint64_t exact = (uint64_t)WT_STAT_DSRC_READ(session, stats, btree_row_leaf);
         uint64_t exact_avg =
-          exact > 0 ? (uint64_t)WT_STAT_DSRC_READ(stats, btree_entries) / exact : 0;
+          exact > 0 ? (uint64_t)WT_STAT_DSRC_READ(session, stats, btree_entries) / exact : 0;
 
         __wt_atomic_store_uint64_relaxed(&btree->approx_leaf_pages, exact);
         WT_STATP_DSRC_SET(session, stats, btree_row_leaf_pages, exact);

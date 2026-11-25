@@ -227,6 +227,13 @@ compare_srcfile(tmp_file, '../src/include/wiredtiger.h.in')
 
 def print_func(name, handle, statlist, capname=None):
     '''Print the structures/functions for the stat.c file.'''
+    if name != 'session':
+        is_dsrc = name == 'dsrc'
+        counter_slots = 'S2C(session)->stat_dsrc_buckets' if is_dsrc else \
+            'WT_STAT_' + capname + '_COUNTER_SLOTS'
+        session_arg = 'WT_SESSION_IMPL *session, ' if is_dsrc else ''
+        read_args = 'session, from, ' if is_dsrc else 'from, '
+
     f.write('\n')
     f.write('static const char * const __stats_' + name + '_desc[] = {\n')
     for l in statlist:
@@ -291,21 +298,37 @@ __wt_stat_''' + name + '_init_single(WT_' + name.upper() + '''_STATS *stats)
 ''')
 
     if handle != None:
+        if is_dsrc:
+            init_declarations = '\tWT_DECL_RET;\n\tu_int i;'
+            init_stats = '\tWT_ERR(__wt_calloc_def(session, ' + counter_slots + \
+                ', &handle->stats));\n'
+            init_cleanup = '''
+err:
+\t__wt_free(session, handle->stat_array);
+\treturn (ret);
+'''
+            discard_stats = '\t__wt_free(session, handle->stats);\n'
+        else:
+            init_declarations = '\tint i;'
+            init_stats = init_cleanup = discard_stats = ''
+
         f.write('''
 int
 __wt_stat_''' + name + '''_init(
     WT_SESSION_IMPL *session, ''' + handle + ''' *handle)
 {
-\tint i;
+''' + init_declarations + '''
 
-\tWT_RET(__wt_calloc(session, (size_t)WT_STAT_''' + capname + '''_COUNTER_SLOTS,
+\tWT_RET(__wt_calloc(session, (size_t)''' + counter_slots + ''',
 \t    sizeof(*handle->stat_array), &handle->stat_array));
+''' + init_stats + '''
 
-\tfor (i = 0; i < WT_STAT_''' + capname + '''_COUNTER_SLOTS; ++i) {
+\tfor (i = 0; i < ''' + counter_slots + '''; ++i) {
 \t\thandle->stats[i] = &handle->stat_array[i];
 \t\t__wt_stat_''' + name + '''_init_single(handle->stats[i]);
 \t}
 \treturn (0);
+''' + init_cleanup + '''
 }
 
 void
@@ -313,7 +336,7 @@ __wt_stat_''' + name + '''_discard(
     WT_SESSION_IMPL *session, ''' + handle + ''' *handle)
 {
 \t__wt_free(session, handle->stat_array);
-}
+''' + discard_stats + '''}
 ''')
 
     # Each OTel type has its own clearing function, so clearing everything and clearing one type
@@ -358,11 +381,12 @@ __wt_stat_''' + name + '_clear_single(WT_' + name.upper() + '''_STATS *stats, ui
     if name != 'session':
         f.write('''
 void
-__wt_stat_''' + name + '_clear_all(WT_' + name.upper() + '''_STATS **stats, uint32_t otel_flag)
+__wt_stat_''' + name + '_clear_all(' + session_arg + 'WT_' + name.upper() + '''_STATS **stats,
+    uint32_t otel_flag)
 {
 \tu_int i;
 
-\tfor (i = 0; i < WT_STAT_''' + capname + '''_COUNTER_SLOTS; ++i)
+\tfor (i = 0; i < ''' + counter_slots + '''; ++i)
 \t\t__wt_stat_''' + name + '''_clear_single(stats[i], otel_flag);
 }
 ''')
@@ -390,7 +414,7 @@ __wt_stat_''' + name + '''_aggregate_single(
         f.write('''
 void
 __wt_stat_''' + name + '''_aggregate(
-    WT_''' + name.upper() + '_STATS **from, WT_' + name.upper() + '''_STATS *to)
+    ''' + session_arg + 'WT_' + name.upper() + '_STATS **from, WT_' + name.upper() + '''_STATS *to)
 {
 ''')
         # Connection level aggregation does not currently have any computation
@@ -402,13 +426,13 @@ __wt_stat_''' + name + '''_aggregate(
                 break;
         for l in statlist:
             if 'max_aggregate' in l.flags:
-                o = '\tif ((v = WT_STAT_' + capname + '_READ(from, ' + l.name + ')) > ' +\
+                o = '\tif ((v = WT_STAT_' + capname + '_READ(' + read_args + l.name + ')) > ' +\
                     'to->' + l.name + ')\n'
                 if len(o) > 72:             # Account for the leading tab.
                     o = o.replace(' > ', ' >\n\t    ')
                 o +='\t\tto->' + l.name + ' = v;\n'
             else:
-                o = '\tto->' + l.name + ' += WT_STAT_' + capname + '_READ(from, ' + l.name +\
+                o = '\tto->' + l.name + ' += WT_STAT_' + capname + '_READ(' + read_args + l.name +\
                     ');\n'
                 if len(o) > 72:             # Account for the leading tab.
                     o = o.replace(' += ', ' +=\n\t    ')

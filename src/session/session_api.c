@@ -2825,8 +2825,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     /* Safety check to make sure we're doing the right thing. */
     WT_ASSERT(
       session, session_ret->stat_conn_bucket == session_ret->id % WT_STAT_CONN_COUNTER_SLOTS);
-    WT_ASSERT(
-      session, session_ret->stat_dsrc_bucket == session_ret->id % WT_STAT_DSRC_COUNTER_SLOTS);
+    WT_ASSERT(session, session_ret->stat_dsrc_bucket == session_ret->id % conn->stat_dsrc_buckets);
 
     /* Allocate the buffer for operation tracking */
     if (F_ISSET_ATOMIC_32(conn, WT_CONN_OPTRACK)) {

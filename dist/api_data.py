@@ -1536,6 +1536,12 @@ wiredtiger_open_common =\
     Config('session_table_cache', 'true', r'''
         Maintain a per-session cache of tables''',
         type='boolean', undoc=True), # Obsolete after WT-3476
+    Config('statistics_dhandle_buckets', 23, r'''
+        number of statistics buckets allocated per data handle. Smaller values reduce memory usage
+        for workloads with many data handles, while larger values reduce contention when updating
+        statistics. This setting does not affect connection statistics and cannot be
+        reconfigured.''',
+        type='int', min='1', max='1024'),
     Config('transaction_sync', '', r'''
         how to sync log records when the transaction commits''',
         type='category', subconfig=[
