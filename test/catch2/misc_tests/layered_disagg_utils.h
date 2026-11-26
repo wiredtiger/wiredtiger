@@ -56,8 +56,10 @@ layered_disagg_pickup_latest_checkpoint(WT_CONNECTION *conn, WT_SESSION *session
     REQUIRE(conn->get_page_log(conn, "palite", &page_log) == 0);
     memset(&args, 0, sizeof(args));
     REQUIRE(page_log->pl_get_complete_checkpoint(page_log, session, &args) == 0);
-    testutil_snprintf(cfg, sizeof(cfg), "disaggregated=(checkpoint_meta=\"%.*s\")",
-      (int)args.checkpoint_metadata.size, (const char *)args.checkpoint_metadata.data);
+    testutil_snprintf(cfg, sizeof(cfg),
+      "disaggregated=(checkpoint_meta=\"%.*s\",checkpoint_lsn=%" PRIu64 ")",
+      (int)args.checkpoint_metadata.size, (const char *)args.checkpoint_metadata.data,
+      args.checkpoint_lsn);
     REQUIRE(conn->reconfigure(conn, cfg) == 0);
     free(args.checkpoint_metadata.mem);
     REQUIRE(page_log->terminate(page_log, session) == 0);

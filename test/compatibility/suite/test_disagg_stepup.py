@@ -106,12 +106,12 @@ class test_disagg_stepup(compatibility_test.CompatibilityTestCase):
         conn.set_timestamp('stable_timestamp=' + f'{20:x}')
         session.checkpoint()
 
-        # Hand the last complete checkpoint's metadata to the new node.
+        # Hand the last complete checkpoint's metadata and completion LSN to the new node.
         page_log = conn.get_page_log('palite')
-        (_, _, _, meta) = page_log.pl_get_complete_checkpoint(session)
+        (checkpoint_lsn, _, _, meta) = page_log.pl_get_complete_checkpoint(session)
         page_log.terminate(session)
         with open(self.meta_file, 'w') as f:
-            f.write(meta)
+            f.write(f'{checkpoint_lsn}\n{meta}')
 
         session.close()
         conn.close()
@@ -132,8 +132,9 @@ class test_disagg_stepup(compatibility_test.CompatibilityTestCase):
         session.create(self.uri, self.create_config)
 
         with open(self.meta_file, 'r') as f:
-            meta = f.read()
-        conn.reconfigure(f'disaggregated=(checkpoint_meta="{meta}",role="leader")')
+            checkpoint_lsn, meta = f.read().split('\n', 1)
+        conn.reconfigure(f'disaggregated=(checkpoint_meta="{meta}",'
+                         f'checkpoint_lsn={checkpoint_lsn},role="leader")')
 
         cursor = session.open_cursor(self.uri)
         count = 0

@@ -283,6 +283,7 @@ struct __wt_page_delta_config {
  *     Checkpoint metadata structure for disaggregated storage.
  */
 typedef struct __wt_disagg_checkpoint_meta {
+    uint64_t complete_lsn; /* The LSN at which the checkpoint completed. */
     uint64_t metadata_lsn; /* The LSN of the metadata page. */
 
     bool has_metadata_checksum; /* Whether the metadata page checksum is present. */
@@ -317,9 +318,10 @@ struct __wt_repair {
  *      active.
  */
 struct __wt_disagg_deferred_ckpt {
-    uint64_t lsn;         /* Checkpoint metadata LSN */
-    uint64_t queued_time; /* Clock reading when the checkpoint was deferred */
-    char *meta;           /* Checkpoint metadata configuration */
+    uint64_t complete_lsn; /* LSN at which the checkpoint completed */
+    uint64_t lsn;          /* Checkpoint metadata LSN */
+    uint64_t queued_time;  /* Clock reading when the checkpoint was deferred */
+    char *meta;            /* Checkpoint metadata configuration */
     TAILQ_ENTRY(__wt_disagg_deferred_ckpt) q;
 };
 
@@ -337,6 +339,12 @@ struct __wt_disaggregated_storage {
     /* Updates are protected by the checkpoint lock. */
     char *last_checkpoint_root;             /* The root config of the last checkpoint. */
     uint32_t last_checkpoint_meta_checksum; /* The checksum of the last checkpoint metadata page. */
+    /*
+     * The LSN at which the last checkpoint completed, recorded when this node completes one or when
+     * the application installs one; zero if unknown. Distinct from the metadata page LSN kept in
+     * last_checkpoint_meta_lsn.
+     */
+    uint64_t last_checkpoint_lsn;
 
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */

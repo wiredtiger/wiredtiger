@@ -115,12 +115,13 @@ class test_prepare_discover07(wttest.WiredTigerTestCase):
         # Step 3: Reopen as follower and pickup checkpoint
 
         # Get the checkpoint metadata before closing
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
 
         # Configure as follower with checkpoint pickup (not using backup)
         follower_config = self.conn_base_config + \
                          'disaggregated=(role="follower",' + \
-                         f'checkpoint_meta="{checkpoint_meta}")'
+                         f'checkpoint_meta="{checkpoint_meta}",' + \
+                         f'checkpoint_lsn={checkpoint_lsn})'
         # Reopen connection as follower
         self.reopen_conn(config=follower_config)
 

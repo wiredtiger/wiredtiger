@@ -57,12 +57,13 @@ class test_layered_stepup06(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def _open_follower(self, checkpoint_meta):
+    def _open_follower(self, checkpoint_meta, checkpoint_lsn):
         conn = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
-        conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        conn.reconfigure(
+            f'disaggregated=(checkpoint_meta="{checkpoint_meta}",checkpoint_lsn={checkpoint_lsn})')
         return conn
 
     def _checkpoint(self, conn):
@@ -92,11 +93,11 @@ class test_layered_stepup06(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(70))
         self._checkpoint(self.conn)
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
         self.conn.close('debug=(skip_checkpoint=true)')
 
         # ---- Phase 2 (Follower: set up split-prepared state) ----------
-        conn_f = self._open_follower(checkpoint_meta)
+        conn_f = self._open_follower(checkpoint_meta, checkpoint_lsn)
 
         # top_session must be opened before work_session to trigger the
         # failure scenario during step-up.

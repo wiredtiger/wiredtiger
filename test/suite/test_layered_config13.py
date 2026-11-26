@@ -86,13 +86,14 @@ class test_layered_config13(wttest.WiredTigerTestCase):
             self.session.checkpoint()
 
         # Reopen the connection.
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
         self.close_conn()
 
         with self.expectedStdoutPattern("Removing local file"):
             self.open_conn()
 
-        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        self.conn.reconfigure(
+            f'disaggregated=(checkpoint_meta="{checkpoint_meta}",checkpoint_lsn={checkpoint_lsn})')
         self.conn.reconfigure('disaggregated=(role="leader")')
 
         # Check the data.
