@@ -265,7 +265,6 @@ async def open_connection(
 
         await ctx.info(f"Opening connection '{name}' to {home}")
         conn = wiredtiger.wiredtiger_open(home, config or "")
-        # TODO: Expose an explicit session-level internal-access option for debugging tools.
         session = conn.open_session()
         _connections[name] = ConnectionInfo(conn=conn, session=session, home=home, config=config or "")
 

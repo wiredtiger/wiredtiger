@@ -320,7 +320,6 @@ def wiredtiger_compare_uri(args):
     # timestamps. But when they are the same, we must use the same connection.
 
     verbose('wiredtiger_open({})'.format(wtdir1))
-    # TODO: Revisit readonly connections before supporting disaggregated comparisons.
     conn1 = wiredtiger_open(wtdir1, 'readonly')
 
     if wtdir1 == wtdir2:

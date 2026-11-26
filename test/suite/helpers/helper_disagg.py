@@ -967,7 +967,6 @@ class DisaggSchemaEpochMixin:
         Write a stable file entry straight into a node's local metadata, bypassing the read-only
         metadata cursor. Used to plant metadata a node could not have reached legitimately.
         """
-        # TODO: Use writable public metadata where raw-file bookkeeping is not required.
         session = conn.open_session('debug=(allow_internal_access=true)')
         cursor = session.open_cursor('file:WiredTiger.wt')
         cursor.set_key(key)

@@ -76,7 +76,6 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
         self.assertRegex(victim_config, r',id=\d+')
 
         # Inject a fake entry with the same btree ID into the follower's local metadata.
-        # TODO: Use writable public metadata if it preserves the duplicate-entry fixture.
         debug_session = conn_follow.open_session('debug=(allow_internal_access=true)')
         raw_cursor = debug_session.open_cursor('file:WiredTiger.wt', None, None)
         raw_cursor.set_key('file:fake_duplicate.wt_stable')
