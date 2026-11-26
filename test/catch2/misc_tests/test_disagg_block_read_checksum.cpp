@@ -682,7 +682,9 @@ TEST_CASE_METHOD(read_checksum_fixture,
     uint32_t cookie_checksum = build_chain(blocks, 3, WT_BLOCK_DISAGG_DATA_CKSUM, 512, mem_size);
 
     int64_t before = WT_STAT_CONN_READ(conn->stats, cache_bytes_read);
+    int64_t session_before = WT_STAT_SESSION_READ(&session->stats, bytes_read);
     REQUIRE(read_page_chain(cookie_checksum) == 0);
-    CHECK(WT_STAT_CONN_READ(conn->stats, cache_bytes_read) - before ==
-      static_cast<int64_t>(blocks.size() * mem_size));
+    const int64_t expected = static_cast<int64_t>(blocks.size() * mem_size);
+    CHECK(WT_STAT_CONN_READ(conn->stats, cache_bytes_read) - before == expected);
+    CHECK(WT_STAT_SESSION_READ(&session->stats, bytes_read) - session_before == expected);
 }
