@@ -83,12 +83,15 @@ class test_schema_epoch(compatibility_test.CompatibilityTestCase):
         if use_epochs:
             session.connection.set_timestamp(f"stable_disaggregated_schema_epoch={timestamp:x}")
 
-    def pick_up_last_checkpoint(self, session):
+    def pick_up_last_checkpoint(self, session, branch_name):
         """Pick up the last checkpoint in the shared page log and return its timestamp."""
         page_log = session.connection.get_page_log("palite")
-        _, _, timestamp, metadata = page_log.pl_get_complete_checkpoint(session)
+        checkpoint_lsn, _, timestamp, metadata = page_log.pl_get_complete_checkpoint(session)
         page_log.terminate(session)
-        session.connection.reconfigure(f'disaggregated=(checkpoint_meta="{metadata}")')
+        # Older releases do not accept the option; they abandon through the legacy callback.
+        lsn = "" if WTVersion(branch_name) <= WTVersion("mongodb-9.0") \
+            else f",checkpoint_lsn={checkpoint_lsn}"
+        session.connection.reconfigure(f'disaggregated=(checkpoint_meta="{metadata}"{lsn})')
         return timestamp
 
     def expected_rows(self, uri):
@@ -115,7 +118,8 @@ class test_schema_epoch(compatibility_test.CompatibilityTestCase):
         table_uri = f"layered:{home}"
         with self.open_follower(branch_name, home) as session:
             # The first node has no checkpoint to pick up, so default to a value of one.
-            timestamp = self.pick_up_last_checkpoint(session) if self.created_table_uris else 1
+            timestamp = self.pick_up_last_checkpoint(session, branch_name) \
+                if self.created_table_uris else 1
             self.set_stable(session, timestamp, use_epochs)
             session.connection.reconfigure("disaggregated=(role=leader)")
 
