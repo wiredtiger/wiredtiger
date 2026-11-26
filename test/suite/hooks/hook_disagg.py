@@ -319,6 +319,21 @@ def session_compact_replace(orig_session_compact, session_self, uri, config):
     skip_test('Compaction is not supported in disagg storage')
 
 # Called to replace Session.create
+# Disaggregated tables don't support page sizes above this limit.
+DISAGG_MAX_PAGE_SIZE = 32 * 1024 * 1024
+
+# Lower any internal_page_max or leaf_page_max in a table config to the disagg limit.
+def limit_page_sizes(config_str):
+    units = {'': 1, 'B': 1, 'K': 1024, 'KB': 1024, 'M': 1024 ** 2, 'MB': 1024 ** 2,
+             'G': 1024 ** 3, 'GB': 1024 ** 3}
+    def limit(match):
+        size = int(match.group(2)) * units[match.group(3).upper()]
+        if size <= DISAGG_MAX_PAGE_SIZE:
+            return match.group(0)
+        return f'{match.group(1)}={DISAGG_MAX_PAGE_SIZE}'
+    return re.sub(r'\b(internal_page_max|leaf_page_max)=(\d+)([kKmMgG]?[bB]?)(?![\w])',
+                  limit, config_str)
+
 def session_create_replace(orig_session_create, session_self, uri, config):
     testcase = WiredTigerTestCase.getCurrentTestCase()
     disagg_parameters = testcase.platform_api.getDisaggParameters()
@@ -339,6 +354,7 @@ def session_create_replace(orig_session_create, session_self, uri, config):
 
     if mark_table_as_layered:
         mark_as_layered(uri)
+        config_str = limit_page_sizes(config_str)
         if (disagg_parameters.table_prefix == "layered"):
             WiredTigerTestCase.verbose(None, 2, f'    Replacing, old uri = "{uri}"')
             uri = replace_uri(uri)
@@ -469,11 +485,8 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("rollback_to_stable",   "Rollback to stable is not needed at startup"),
             ("test_backup",          "Can't backup a disagg table"),
             ("test_compact",         "Can't compact a disagg table"),
-            ("test_config01",        "Page sizes over 32MB are not supported in disagg storage"),
             ("test_config_json",     "Disagg hook's create function can't handle a json config string"),
             ("test_cursor_big",      "Cursor caching verified with stats"),
-            ("test_cursor_random02", "Page sizes over 32MB are not supported in disagg storage"),
-            ("test_cursor_random03", "Page sizes over 32MB are not supported in disagg storage"),
             ("test_cursor_bound",    "Can't use cursor bounds with a disagg table"),
             ("test_import",          "Can't import a disagg table"),
             ("test_salvage",         "Salvage is not currently supported for disagg"), # FIXME-WT-14740
