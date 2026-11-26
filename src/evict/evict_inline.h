@@ -9,6 +9,18 @@
 #pragma once
 
 /*
+ * __evict_lru_candidate_count --
+ *     Select the candidate count for a nonempty ordinary queue with at most half soon/won't-need
+ *     entries.
+ */
+static WT_INLINE uint32_t
+__evict_lru_candidate_count(uint32_t entries, uint32_t candidates)
+{
+    /* A refill can find just one entry; don't let the half cap hide it. */
+    return (WT_MIN(1 + candidates + (entries - candidates - 1) / 3, WT_MAX(1U, entries / 2)));
+}
+
+/*
  * __evict_min_walk_pages --
  *     Calculate the pages-seen threshold before abandoning a low-yield eviction walk.
  *
