@@ -216,6 +216,33 @@ err:
 }
 
 /*
+ * __page_read_trim_image --
+ *     Copy a page image into a right-sized buffer if the read buffer is mostly unused space.
+ */
+static WT_INLINE int
+__page_read_trim_image(WT_SESSION_IMPL *session, WT_ITEM *image)
+{
+    WT_ITEM trimmed;
+    const WT_PAGE_HEADER *dsk;
+    size_t mem_size;
+
+    /* Mapped images have no allocated buffer, so the unused-space test below skips them. */
+    dsk = image->data;
+    mem_size = dsk->mem_size;
+
+    /* Skip the copy unless more than half of the buffer is unused. */
+    if (image->memsize <= 2 * mem_size)
+        return (0);
+
+    WT_CLEAR(trimmed);
+    WT_RET(__wt_buf_initsize(session, &trimmed, mem_size));
+    memcpy(trimmed.mem, image->data, mem_size);
+    __wt_buf_free(session, image);
+    WT_ITEM_MOVE(*image, trimmed);
+    return (0);
+}
+
+/*
  * __page_read --
  *     Read a page from the file.
  */
@@ -417,7 +444,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         __wt_buf_free(session, &tmp[0]);
 
         WT_ERR(ret);
-    }
+    } else
+        WT_ERR(__page_read_trim_image(session, &tmp[0]));
 
     disk_image_buf = build_full_disk_image_from_deltas ? &new_image_copy : &tmp[0];
 
