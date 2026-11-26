@@ -311,9 +311,9 @@ real_worker(THREAD_DATA *td)
 {
     WT_CURSOR **cursors;
     WT_SESSION *session;
-    wt_timestamp_t base_ts, commit_ts, durable_ts, prepare_ts, rollback_ts;
+    wt_timestamp_t base_ts;
     uint64_t prepared_id;
-    u_int i, keyno, next_rnd, offset_a, offset_b;
+    u_int i, keyno, next_rnd;
     int j, ret, t_ret;
     char buf[128];
     const char *begin_cfg, *rollback_cfg;
@@ -425,19 +425,11 @@ real_worker(THREAD_DATA *td)
                             base_ts = RESERVED_TIMESTAMPS_FOR_ITERATION(g.nworkers, td, i + 1);
                         else
                             base_ts = g.ts_stable + 1;
-                        commit_ts = prepare_ts = base_ts;
                         next_rnd = __wt_random(&td->data_rnd);
                         if (g.prepare && next_rnd % 2 == 0) {
-                            /* Ordering independent draws makes equal timestamps uncommon. */
-                            offset_a = __wt_random(&td->data_rnd) % PREPARE_TIMESTAMP_WINDOW;
-                            offset_b = __wt_random(&td->data_rnd) % PREPARE_TIMESTAMP_WINDOW;
-                            prepare_ts = base_ts + WT_MIN(offset_a, offset_b);
-                            durable_ts = base_ts + WT_MAX(offset_a, offset_b);
-                            commit_ts = prepare_ts +
-                              __wt_random(&td->data_rnd) % (durable_ts - prepare_ts + 1);
                             prepared_id = __wt_atomic_add_uint64_v(&g.prepared_id, 1);
                             testutil_snprintf(buf, sizeof(buf),
-                              "prepare_timestamp=%" PRIx64 ",prepared_id=%" PRIx64, prepare_ts,
+                              "prepare_timestamp=%" PRIx64 ",prepared_id=%" PRIx64, base_ts,
                               prepared_id);
                             if ((ret = session->prepare_transaction(session, buf)) != 0) {
                                 if (!g.predictable_replay)
@@ -446,12 +438,12 @@ real_worker(THREAD_DATA *td)
                                 goto err;
                             }
                             testutil_snprintf(buf, sizeof(buf),
-                              "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64, durable_ts,
-                              commit_ts);
+                              "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64,
+                              base_ts + 2, base_ts);
                             prepared = true;
                         } else
                             testutil_snprintf(
-                              buf, sizeof(buf), "commit_timestamp=%" PRIx64, commit_ts);
+                              buf, sizeof(buf), "commit_timestamp=%" PRIx64, base_ts);
 
                         /* Commit majority of times. */
                         if (next_rnd % 49 != 0) {
@@ -462,14 +454,11 @@ real_worker(THREAD_DATA *td)
                                 goto err;
                             }
                             if (g.predictable_replay)
-                                WT_RELEASE_WRITE_WITH_BARRIER(td->ts, commit_ts);
+                                WT_RELEASE_WRITE_WITH_BARRIER(td->ts, base_ts);
                         } else {
                             if (prepared) {
-                                rollback_ts = prepare_ts +
-                                  __wt_random(&td->data_rnd) %
-                                    (base_ts + PREPARE_TIMESTAMP_WINDOW - prepare_ts);
                                 testutil_snprintf(
-                                  buf, sizeof(buf), "rollback_timestamp=%" PRIx64, rollback_ts);
+                                  buf, sizeof(buf), "rollback_timestamp=%" PRIx64, base_ts + 2);
                                 rollback_cfg = buf;
                             } else
                                 rollback_cfg = NULL;

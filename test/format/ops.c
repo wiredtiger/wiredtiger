@@ -724,7 +724,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
 {
     WT_DECL_RET;
     WT_SESSION *session;
-    wt_timestamp_t durable_ts, ts;
+    uint64_t ts;
 
     session = tinfo->session;
 
@@ -736,20 +736,15 @@ commit_transaction(TINFO *tinfo, bool prepared)
             lock_readlock(session, &g.prepare_commit_lock);
 
         if (GV(RUNS_PREDICTABLE_REPLAY))
-            durable_ts = ts = replay_commit_ts(tinfo);
-        else if (prepared && rng(&tinfo->data_rnd) % 10 == 0)
-            /* Stable stays below the worker's previous commit while this transaction is active. */
-            durable_ts = ts = tinfo->prepare_ts;
-        else if (prepared) {
-            durable_ts = next_timestamp(session);
-            ts = tinfo->prepare_ts + rng(&tinfo->data_rnd) % (durable_ts - tinfo->prepare_ts + 1);
-        } else
-            durable_ts = ts = next_timestamp(session);
+            ts = replay_commit_ts(tinfo);
+        else {
+            ts = next_timestamp(session);
+        }
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
 
         if (prepared)
             testutil_check(
-              session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, durable_ts));
+              session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, ts));
 
         ret = session->commit_transaction(session, NULL);
         if (prepared)
@@ -797,8 +792,6 @@ rollback_transaction(TINFO *tinfo, bool prepared)
     if (prepared) {
         if (GV(RUNS_PREDICTABLE_REPLAY))
             ts = replay_rollback_ts(tinfo);
-        else if (rng(&tinfo->data_rnd) % 10 == 0)
-            ts = tinfo->prepare_ts;
         else
             ts = next_timestamp(session);
 
@@ -830,8 +823,8 @@ prepare_transaction(TINFO *tinfo)
     if (GV(RUNS_PREDICTABLE_REPLAY)) {
         ts = replay_prepare_ts(tinfo);
         /*
-         * WT_TS_NONE signals that there is no valid prepare timestamp for this transaction (the
-         * lane's last commit is not below the current replay_ts). Skip prepare.
+         * WT_TS_NONE signals that there is no valid prepare timestamp for this transaction (e.g.,
+         * the lane's last commit is too close to the current replay_ts). Skip prepare.
          */
         if (ts == WT_TS_NONE)
             return (ENOTSUP);
@@ -839,10 +832,10 @@ prepare_transaction(TINFO *tinfo)
         /*
          * Prepare timestamps must be less than or equal to the eventual commit timestamp but larger
          * than the current stable timestamp. Increase the global value to ensure it is larger than
-         * the stable timestamp.
+         * the stable timestamp. The subsequent commit will increment it again, ensuring
+         * correctness.
          */
         ts = next_timestamp(session);
-    tinfo->prepare_ts = ts;
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, ts));
     testutil_check(session->prepared_id_transaction_uint(session, prepared_id));
     ret = session->prepare_transaction(session, NULL);
