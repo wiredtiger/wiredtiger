@@ -95,8 +95,8 @@ class test_disagg_internal_page_size01(wttest.WiredTigerTestCase):
             with self.transaction(commit_timestamp=1):
                 cursor['key'] = 'value'
 
-    def get_stat(self, statistic):
-        with wttest.open_cursor(self.session, 'statistics:') as stat_cursor:
+    def get_stat(self, statistic, uri=''):
+        with wttest.open_cursor(self.session, 'statistics:' + uri) as stat_cursor:
             return stat_cursor[statistic][2]
 
     def test_oversized_item_rejected(self):
@@ -119,7 +119,9 @@ class test_disagg_internal_page_size01(wttest.WiredTigerTestCase):
                         lambda: cursor.update(), too_large)
 
             # Each rejected write is counted: an insert and an update for each of the three items.
-            self.assertEqual(self.get_stat(stat.conn.disagg_item_too_large), 6)
+            self.assertEqual(self.get_stat(stat.conn.cursor_write_exceeds_disagg_page_limit), 6)
+            self.assertEqual(
+                self.get_stat(stat.dsrc.cursor_write_exceeds_disagg_page_limit, self.uri), 6)
 
             # The largest MongoDB document is accepted.
             with self.transaction(commit_timestamp=2):
@@ -133,4 +135,6 @@ class test_disagg_internal_page_size01(wttest.WiredTigerTestCase):
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: cursor.modify([wiredtiger.Modify('y' * (14 * mb), 20 * mb, 0)]),
                     too_large)
-            self.assertEqual(self.get_stat(stat.conn.disagg_item_too_large), 7)
+            self.assertEqual(self.get_stat(stat.conn.cursor_write_exceeds_disagg_page_limit), 7)
+            self.assertEqual(
+                self.get_stat(stat.dsrc.cursor_write_exceeds_disagg_page_limit, self.uri), 7)

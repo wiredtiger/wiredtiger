@@ -357,6 +357,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update calls",
   "cursor: update key and value bytes",
   "cursor: update value size change",
+  "cursor: writes rejected for exceeding the maximum disaggregated page size",
   "layered: Layered table cursor blind remove operations on a follower",
   "layered: Layered table cursor blind remove operations on a key already removed locally",
   "layered: Layered table cursor insert operations",
@@ -870,6 +871,7 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_CURSOR_UPDATE,
   WT_STAT_DSRC_CURSOR_UPDATE_BYTES,
   WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED,
+  WT_STAT_DSRC_CURSOR_WRITE_EXCEEDS_DISAGG_PAGE_LIMIT,
   WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_FOLLOWER,
   WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED,
   WT_STAT_DSRC_LAYERED_CURS_INSERT,
@@ -1424,6 +1426,7 @@ __stat_dsrc_clear_none(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
+    stats->cursor_write_exceeds_disagg_page_limit = 0;
     stats->layered_curs_blind_remove_follower = 0;
     stats->layered_curs_blind_remove_ingest_deleted = 0;
     stats->layered_curs_insert = 0;
@@ -1988,6 +1991,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
+    to->cursor_write_exceeds_disagg_page_limit += from->cursor_write_exceeds_disagg_page_limit;
     to->layered_curs_blind_remove_follower += from->layered_curs_blind_remove_follower;
     to->layered_curs_blind_remove_ingest_deleted += from->layered_curs_blind_remove_ingest_deleted;
     to->layered_curs_insert += from->layered_curs_insert;
@@ -2591,6 +2595,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
+    to->cursor_write_exceeds_disagg_page_limit +=
+      WT_STAT_DSRC_READ(from, cursor_write_exceeds_disagg_page_limit);
     to->layered_curs_blind_remove_follower +=
       WT_STAT_DSRC_READ(from, layered_curs_blind_remove_follower);
     to->layered_curs_blind_remove_ingest_deleted +=
@@ -3434,6 +3440,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor update calls that return an error",
   "cursor: cursor update key and value bytes",
   "cursor: cursor update value size change",
+  "cursor: cursor writes rejected for exceeding the maximum disaggregated page size",
   "cursor: cursors reused from cache",
   "cursor: number of memory allocations performed in service of cursor next raw key value batch",
   "cursor: number of results requested by callers of cursor next raw key value batch",
@@ -3519,7 +3526,6 @@ static const char *const __stats_connection_desc[] = {
   "disagg: time the most recently adopted checkpoint spent deferred, zero if adopted on delivery "
   "(msecs)",
   "disagg: unpublished schema operations canceled by a drop",
-  "disagg: writes rejected for exceeding the maximum disaggregated page size",
   "layered: Layered table cursor blind remove operations on a follower",
   "layered: Layered table cursor blind remove operations on a key already removed locally",
   "layered: Layered table cursor insert operations",
@@ -4623,6 +4629,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CURSOR_UPDATE_ERROR,
   WT_STAT_CONN_CURSOR_UPDATE_BYTES,
   WT_STAT_CONN_CURSOR_UPDATE_BYTES_CHANGED,
+  WT_STAT_CONN_CURSOR_WRITE_EXCEEDS_DISAGG_PAGE_LIMIT,
   WT_STAT_CONN_CURSOR_REOPEN,
   WT_STAT_CONN_CURSOR_NEXT_RAW_KV_BATCH_ALLOCATIONS,
   WT_STAT_CONN_CURSOR_NEXT_RAW_KV_BATCH_REQUESTED,
@@ -4700,7 +4707,6 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_INGEST_CREATE_ON_OPEN_TIME,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT,
   WT_STAT_CONN_DISAGG_SCHEMA_CANCELED,
-  WT_STAT_CONN_DISAGG_ITEM_TOO_LARGE,
   WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_FOLLOWER,
   WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED,
   WT_STAT_CONN_LAYERED_CURS_INSERT,
@@ -5832,6 +5838,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->cursor_update_error = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
+    stats->cursor_write_exceeds_disagg_page_limit = 0;
     stats->cursor_reopen = 0;
     stats->cursor_next_raw_kv_batch_allocations = 0;
     stats->cursor_next_raw_kv_batch_requested = 0;
@@ -5909,7 +5916,6 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->disagg_ingest_create_on_open_time = 0;
     /* not clearing disagg_checkpoint_defer_adopt_wait */
     stats->disagg_schema_canceled = 0;
-    stats->disagg_item_too_large = 0;
     stats->layered_curs_blind_remove_follower = 0;
     stats->layered_curs_blind_remove_ingest_deleted = 0;
     stats->layered_curs_insert = 0;
@@ -7163,6 +7169,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_update_error += WT_STAT_CONN_READ(from, cursor_update_error);
     to->cursor_update_bytes += WT_STAT_CONN_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_CONN_READ(from, cursor_update_bytes_changed);
+    to->cursor_write_exceeds_disagg_page_limit +=
+      WT_STAT_CONN_READ(from, cursor_write_exceeds_disagg_page_limit);
     to->cursor_reopen += WT_STAT_CONN_READ(from, cursor_reopen);
     to->cursor_next_raw_kv_batch_allocations +=
       WT_STAT_CONN_READ(from, cursor_next_raw_kv_batch_allocations);
@@ -7286,7 +7294,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_checkpoint_defer_adopt_wait +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_defer_adopt_wait);
     to->disagg_schema_canceled += WT_STAT_CONN_READ(from, disagg_schema_canceled);
-    to->disagg_item_too_large += WT_STAT_CONN_READ(from, disagg_item_too_large);
     to->layered_curs_blind_remove_follower +=
       WT_STAT_CONN_READ(from, layered_curs_blind_remove_follower);
     to->layered_curs_blind_remove_ingest_deleted +=
