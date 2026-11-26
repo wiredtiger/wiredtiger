@@ -24,7 +24,8 @@ The table shows which APIs may directly access internal objects.
 </tr>
 <tr>
 <td><b>Cursor opens</b><br>
-WT_SESSION::open_cursor</td>
+WT_SESSION::open_cursor, except statistics cursors and cursors configured with
+<code>debug=(release_evict=true)</code></td>
 <td colspan="2">Reject</td>
 </tr>
 <tr>

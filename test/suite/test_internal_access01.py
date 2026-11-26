@@ -82,6 +82,11 @@ class test_internal_access01(wttest.WiredTigerTestCase, suite_subprocess):
                 else:
                     with closing(self.session.open_cursor(uri)):
                         pass
+                # Statistics and evict-on-release debug cursors are not restricted.
+                with closing(self.session.open_cursor('statistics:' + uri)):
+                    pass
+                with closing(self.session.open_cursor(uri, None, 'debug=(release_evict)')):
+                    pass
                 with closing(debug.open_cursor(uri)):
                     for operation in (self.session.verify, self.session.salvage):
                         with self.assertRaises(wiredtiger.WiredTigerError) as error:

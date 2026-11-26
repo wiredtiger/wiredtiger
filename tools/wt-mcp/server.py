@@ -1665,7 +1665,6 @@ async def get_statistics_by_category(
         await ctx.info(f"Getting '{category}' statistics for {stat_target}")
 
         cursor_uri = f"statistics:{uri}" if uri else "statistics:"
-        # TODO: Permit scoped metadata/HS statistics without elevating the shared mutation session.
         stat_cursor = info.session.open_cursor(cursor_uri, None, None)
 
         category_lower = category.lower()

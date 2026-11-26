@@ -855,17 +855,23 @@ __wt_session_is_layered_internal(WT_SESSION_IMPL *session, const char *name)
 
 /*
  * __session_open_cursor_name_check --
- *     Check the object a cursor opens, ignoring any statistics prefix and table or index
- *     projection; the check runs only in diagnostic builds to avoid performance overheads.
+ *     Check the object a cursor opens, ignoring any table or index projection; the check runs only
+ *     in diagnostic builds to avoid performance overheads.
  */
 static int
-__session_open_cursor_name_check(WT_SESSION_IMPL *session, const char *uri)
+__session_open_cursor_name_check(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
 #ifdef HAVE_DIAGNOSTIC
+    WT_CONFIG_ITEM cval;
     size_t len;
 
-    /* Connection and session statistics have no object to check. */
-    if (WT_PREFIX_SKIP(uri, "statistics:") && strchr(uri, ':') == NULL)
+    /* Statistics cursors are read-only and the only way to see per-file internal statistics. */
+    if (WT_PREFIX_MATCH(uri, "statistics:"))
+        return (0);
+
+    /* Cursors configured to evict pages on release are a debugging tool. */
+    WT_RET(__wt_config_gets_def(session, cfg, "debug.release_evict", 0, &cval));
+    if (cval.val != 0)
         return (0);
 
     /* Cut off any projection: its column list is not part of the object name. */
@@ -877,6 +883,7 @@ __session_open_cursor_name_check(WT_SESSION_IMPL *session, const char *uri)
 #else
     WT_UNUSED(session);
     WT_UNUSED(uri);
+    WT_UNUSED(cfg);
     return (0);
 #endif
 }
@@ -932,7 +939,7 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
         WT_ERR_MSG(
           session, EINVAL, "should be passed either a URI or a cursor to duplicate, but not both");
 
-    WT_ERR(__session_open_cursor_name_check(session, to_dup == NULL ? uri : to_dup->uri));
+    WT_ERR(__session_open_cursor_name_check(session, to_dup == NULL ? uri : to_dup->uri, cfg));
 
     __wt_cursor_get_hash(session, uri, to_dup, &hash_value);
     if ((ret = __wt_cursor_cache_get(session, uri, hash_value, to_dup, cfg, &cursor)) == 0)

@@ -1003,13 +1003,9 @@ class DisaggSizeTestMixin:
         return int(sizes[-1])
 
     def get_stat(self, stat_key, uri=None):
-        # TODO: Opt in only when the requested statistics target is an internal file.
-        # The default URI is the stable constituent, which requires internal access.
-        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
-        s = debug_session.open_cursor('statistics:' + (uri if uri is not None else self.stable_uri))
+        s = self.session.open_cursor('statistics:' + (uri if uri is not None else self.stable_uri))
         val = s[stat_key][2]
         s.close()
-        debug_session.close()
         return val
 
     def get_conn_stat(self, stat_key):

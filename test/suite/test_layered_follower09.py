@@ -108,17 +108,14 @@ class test_layered_follower09(wttest.WiredTigerTestCase):
         # Then advance the checkpoint and make sure everything is still good
         self.disagg_advance_checkpoint(conn_follow)
 
-        # Trigger eviction on the ingest table, via a dedicated session as the table is internal
-        debug_session = conn_follow.open_session('debug=(allow_internal_access=true)')
-        evict_cursor = debug_session.open_cursor(f"file:{self.test_name}.wt_ingest", None, "debug=(release_evict)")
+        # Trigger eviction on the ingest table
+        evict_cursor = session_follow.open_cursor(f"file:{self.test_name}.wt_ingest", None, "debug=(release_evict)")
         for i in range(1, self.nitems):
-            debug_session.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
+            session_follow.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
             evict_cursor.set_key(str(i))
             self.assertEqual(evict_cursor.search(), 0)
             evict_cursor.reset()
-            debug_session.rollback_transaction()
-        evict_cursor.close()
-        debug_session.close()
+            session_follow.rollback_transaction()
 
         count = 1
         while cursor.next() == 0:
