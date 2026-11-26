@@ -341,12 +341,7 @@ done:
 void
 prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
 {
-    WT_UNUSED(td);
-    /*
-     * Since RTS is not ran with precise checkpoint, we need to use prepare discover cursor to claim
-     * all pending prepared transactions. When precise checkpoint is not configure, there's no need
-     * to run prepare discover.
-     */
+    /* Precise checkpoint skips rollback to stable on recovery, leaving prepares to resolve. */
     if (!g.precise_checkpoint)
         return;
 
@@ -370,10 +365,11 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
     testutil_check(ret);
     /* Iterate through all prepared transactions and claim pending prepared transactions. */
     discover_count = 0;
-    testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
+    testutil_check(conn->query_timestamp(conn, timestamp_buf, "get=stable_timestamp"));
     wt_timestamp_t current_stable = testutil_timestamp_parse(timestamp_buf);
+    wt_timestamp_t max_ts = current_stable;
     while ((ret = cursor->next(cursor)) == 0) {
-        wt_timestamp_t commit_ts, durable_ts, rollback_ts;
+        wt_timestamp_t base_ts, commit_ts, durable_ts, prepare_ts, rollback_ts;
 
         ++discover_count;
         testutil_check(cursor->get_key(cursor, &prepared_id));
@@ -381,25 +377,29 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
         /* Claim the prepared transaction */
         testutil_snprintf(buf, sizeof(buf), "claim_prepared_id=%" PRIx64, prepared_id);
         testutil_check(session->begin_transaction(session, buf));
+        testutil_check(session->query_timestamp(session, timestamp_buf, "get=prepare"));
+        prepare_ts = testutil_timestamp_parse(timestamp_buf);
+        base_ts = WT_MAX(current_stable + 1, prepare_ts);
 
         /* Randomly decide whether to commit or roll back */
         u_int rnd = __wt_random(&td->data_rnd);
         should_commit = rnd % 2 == 0;
 
         if (should_commit) {
-            /* Use timestamps greater than current stable */
-            commit_ts = current_stable + 1;
-            durable_ts = commit_ts + 1;
+            /* Recovery can commit before stable, but durability must follow it. */
+            durable_ts = base_ts + __wt_random(&td->data_rnd) % (PREPARE_TIMESTAMP_WINDOW + 1);
+            commit_ts = prepare_ts + __wt_random(&td->data_rnd) % (durable_ts - prepare_ts + 1);
 
             testutil_snprintf(buf, sizeof(buf),
               "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64, durable_ts, commit_ts);
             testutil_check(session->commit_transaction(session, buf));
+            max_ts = WT_MAX(max_ts, durable_ts);
 
         } else {
-
-            rollback_ts = current_stable + 2;
+            rollback_ts = base_ts + __wt_random(&td->data_rnd) % (PREPARE_TIMESTAMP_WINDOW + 1);
             testutil_snprintf(buf, sizeof(buf), "rollback_timestamp=%" PRIx64, rollback_ts);
             testutil_check(session->rollback_transaction(session, buf));
+            max_ts = WT_MAX(max_ts, rollback_ts);
         }
     }
     /* WT_NOTFOUND is expected when we reach the end of the cursor */
@@ -412,13 +412,14 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
     if (discover_count > 0) {
         /* Only modify stable timestamp if not in predictable replay mode */
         if (!g.predictable_replay) {
-            g.ts_stable = current_stable + 3;
+            g.ts_stable = max_ts;
             printf("Final: setting stable to %" PRIu64, g.ts_stable);
             set_stable(g.ts_stable);
         }
         /* In both modes, do a checkpoint after processing prepared transactions */
-        session->checkpoint(session, NULL);
-        if ((ret = verify_consistency(session, WT_TS_NONE, true)) != 0)
+        testutil_check(session->checkpoint(session, NULL));
+        /* FIXME-WT-15357: Checkpoint cursors are not compatible with disagg for now. */
+        if ((ret = verify_consistency(session, WT_TS_NONE, !g.opts.disagg.is_enabled)) != 0)
             log_print_err("verify_consistency (post prepare-discover)", ret, 1);
     }
     testutil_check(session->close(session, NULL));

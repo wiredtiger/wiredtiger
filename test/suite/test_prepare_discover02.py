@@ -57,7 +57,16 @@ class test_prepare_discover02(wttest.WiredTigerTestCase, suite_subprocess):
         ('logging_on', dict(table_logging=True)),
     ]
 
-    scenarios = make_scenarios(types, txn_end, logging)
+    commit_timestamps = [
+        ('at_prepare', dict(commit_ts=100)),
+        ('before_stable', dict(commit_ts=120)),
+        ('at_stable', dict(commit_ts=150)),
+        ('after_stable', dict(commit_ts=200)),
+        ('at_durable', dict(commit_ts=210)),
+    ]
+
+    scenarios = make_scenarios(types, txn_end, logging, commit_timestamps,
+        include=lambda name, s: s['txn_commit'] or s['commit_ts'] == 200)
 
     def test_prepare_discover02(self):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
@@ -105,8 +114,9 @@ class test_prepare_discover02(wttest.WiredTigerTestCase, suite_subprocess):
             prepared_id = prepared_discover_cursor.get_key()
             self.assertEqual(prepared_id, 123)
             c2s2.begin_transaction('claim_prepared_id=' + self.prepared_id_str(prepared_id))
+            self.assertEqual(int(c2s2.query_timestamp('get=prepare'), 16), 100)
             if self.txn_commit:
-                commit_config = 'commit_timestamp=' + self.timestamp_str(200)
+                commit_config = 'commit_timestamp=' + self.timestamp_str(self.commit_ts)
                 durable_config = 'durable_timestamp=' + self.timestamp_str(210)
                 if self.separate_timestamps:
                     c2s2.timestamp_transaction(commit_config)
@@ -148,23 +158,32 @@ class test_prepare_discover02(wttest.WiredTigerTestCase, suite_subprocess):
         c2s3.rollback_transaction()
         read_cursor.close()
 
-        # Check whether the recovered prepared inserts are visible at timestamp 200.
-        c2s3.begin_transaction(f'read_timestamp={self.timestamp_str(200)}')
-        read_cursor = c2s3.open_cursor(self.uri, None, None)
-        for i in range(1, 3):
-            read_cursor.set_key(i)
-            self.assertEqual(read_cursor.search(), 0)
-            self.assertEqual(read_cursor.get_value(), "commit ts=60")
-
-        for i in range(3, 6):
-            read_cursor.set_key(i)
-            if self.txn_commit:
+        # The recovered inserts become visible at commit, regardless of its relation to stable.
+        read_timestamps = [self.commit_ts - 1, self.commit_ts] if self.txn_commit else [200]
+        for read_ts in read_timestamps:
+            c2s3.begin_transaction(f'read_timestamp={self.timestamp_str(read_ts)}')
+            read_cursor = c2s3.open_cursor(self.uri, None, None)
+            for i in range(1, 3):
+                read_cursor.set_key(i)
                 self.assertEqual(read_cursor.search(), 0)
-                self.assertEqual(read_cursor.get_value(), "prepare ts=100")
-            else:
-                self.assertEqual(read_cursor.search(), wiredtiger.WT_NOTFOUND)
-        c2s3.rollback_transaction()
-        read_cursor.close()
+                self.assertEqual(read_cursor.get_value(), "commit ts=60")
+
+            for i in range(3, 6):
+                read_cursor.set_key(i)
+                if self.txn_commit and read_ts >= self.commit_ts:
+                    self.assertEqual(read_cursor.search(), 0)
+                    self.assertEqual(read_cursor.get_value(), "prepare ts=100")
+                else:
+                    self.assertEqual(read_cursor.search(), wiredtiger.WT_NOTFOUND)
+            c2s3.rollback_transaction()
+            read_cursor.close()
+
+        # A checkpoint covering the resolution leaves no prepared transactions to discover.
+        conn2.set_timestamp('stable_timestamp=' + self.timestamp_str(210))
+        c2s1.checkpoint()
+        prepared_discover_cursor = c2s1.open_cursor('prepared_discover:')
+        self.assertEqual(prepared_discover_cursor.next(), wiredtiger.WT_NOTFOUND)
+        prepared_discover_cursor.close()
 
         conn2.close()
         if self.table_logging and self.txn_commit:
@@ -175,5 +194,5 @@ class test_prepare_discover02(wttest.WiredTigerTestCase, suite_subprocess):
                 if record['type'] == 'commit' and record['txnid'] == 0
                 for op in record['ops'] if op['optype'] == 'txn_timestamp']
             self.assertEqual(len(timestamps), logged_operations)
-            self.assertTrue(any(op['prepare_ts'] == 100 and op['commit_ts'] == 200 and
+            self.assertTrue(any(op['prepare_ts'] == 100 and op['commit_ts'] == self.commit_ts and
                 op['durable_ts'] == 210 for op in timestamps))
