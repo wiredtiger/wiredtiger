@@ -1720,8 +1720,13 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags,
      *
      * Don't set any other visibility flags for history store table as all the content is evictable.
      */
-    else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
+    else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         ;
+    else if (WT_IS_HS(btree->dhandle)) {
+        if (!WT_SESSION_BTREE_SYNC(session) && F_ISSET(evict, WT_EVICT_CACHE_SCRUB) &&
+          !__wti_evict_hs_dirty(session) && !__wt_evict_clean_needed(session, NULL))
+            LF_SET(WT_REC_SAVE_IMAGE_ALWAYS);
+    }
     /* Always do update restore for in-memory btrees. */
     else if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SAVE_IMAGE_ALWAYS);
