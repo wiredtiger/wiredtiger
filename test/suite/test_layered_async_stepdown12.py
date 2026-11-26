@@ -59,6 +59,7 @@ class test_layered_async_stepdown12(LayeredStepdownMixin, wttest.WiredTigerTestC
         # mark and the first operation goes to the stable constituent.
         cursor = self.session.open_cursor(self.uri, None, None)
 
+        # TODO: Use writable public metadata if it preserves the missing-source fixture.
         debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
         metadata = debug_session.open_cursor('file:WiredTiger.wt')
         metadata.set_key(self.stable_uri(self.uri))

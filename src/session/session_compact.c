@@ -388,7 +388,7 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     SESSION_API_CALL(session, ret, compact, config, cfg, false);
 
     if (uri != NULL)
-        WT_ERR(__wt_uri_name_check(session, uri));
+        WT_ERR(__wt_uri_name_check(session, uri, false));
     if (__wt_conn_is_disagg(session))
         WT_ERR_MSG(session, ENOTSUP, "Compaction does not work with disaggregated storage.");
 

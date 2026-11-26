@@ -50,8 +50,6 @@ extern bool __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wt_session_is_global_internal(const char *name)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_session_is_layered_internal(WT_SESSION_IMPL *session, const char *name)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -110,7 +108,6 @@ extern const char *__wt_session_strerror(WT_SESSION *wt_session, int error)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_strerror(WT_SESSION_IMPL *session, int error, char *errbuf, size_t errlen)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern const char *__wt_uri_name(const char *uri) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_verbose_category_string(WT_VERBOSE_CATEGORY category)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_wiredtiger_error(int error)
@@ -889,8 +886,8 @@ extern int __wt_msg(WT_SESSION_IMPL *session, const char *fmt, ...)
 extern int __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page,
   WT_MULTI *multi, size_t multi_entries, WT_REF **refp, size_t *incrp, bool first, bool closing)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_name_check(WT_SESSION_IMPL *session, const char *str, size_t len, bool check_uri)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_name_check(WT_SESSION_IMPL *session, const char *str, size_t len, bool check_uri,
+  bool allow_wt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_nhex_to_raw(WT_SESSION_IMPL *session, const char *from, size_t size, WT_ITEM *to)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_object_unsupported(WT_SESSION_IMPL *session, const char *uri)
@@ -1049,8 +1046,6 @@ extern int __wt_session_array_walk(WT_SESSION_IMPL *session,
   bool skip_internal, void *cookiep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_breakpoint(WT_SESSION *wt_session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_session_check_internal_uri(WT_SESSION_IMPL *session, const char *uri,
-  bool condition) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_close_internal(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
@@ -1249,7 +1244,7 @@ extern int __wt_unexpected_object_type(
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_update_vector_push(WT_UPDATE_VECTOR *updates, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_uri_name_check(WT_SESSION_IMPL *session, const char *uri)
+extern int __wt_uri_name_check(WT_SESSION_IMPL *session, const char *uri, bool allow_wt)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf,
   WT_TIME_WINDOW *tw) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

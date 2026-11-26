@@ -370,6 +370,7 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
     WT_ERR(__repair_config_decode(session, report, config, &repair_config));
 
     /* B-tree size repair verifies shared constituent files directly. */
+    /* TODO: Prefer logical-table verification where it preserves shared-file repair coverage. */
     if (repair_config.command == WT_REPAIR_COMMAND_FIX_BTREE_SIZE)
         WT_ERR(session->iface.reconfigure(&session->iface, "debug=(allow_internal_access=true)"));
 

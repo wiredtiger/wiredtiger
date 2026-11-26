@@ -85,6 +85,7 @@ class test_disagg_checkpoint_size22(DisaggSizeTestMixin, wttest.WiredTigerTestCa
 
     def size_stat(self, key, uri=None, session=None):
         """Return one statistic from a size-only statistics cursor."""
+        # TODO: Keep non-internal statistics reads on the supplied session without the bypass.
         with (
             closing((session or self.session).connection.open_session(
                 'debug=(allow_internal_access=true)')) as debug_session,

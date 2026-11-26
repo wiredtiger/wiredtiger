@@ -112,17 +112,61 @@ __wti_schema_session_release(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_sess
 }
 
 /*
+ * __schema_uri_name --
+ *     Return the object name after the URI prefixes, skipping at most two of them.
+ */
+static const char *
+__schema_uri_name(const char *uri)
+{
+    int skipped;
+    const char *name, *sep;
+
+    name = uri;
+    for (skipped = 0; skipped < 2 && (sep = strchr(name, ':')) != NULL; skipped++)
+        name = sep + 1;
+    return (name);
+}
+
+/*
+ * __schema_internal_access_bypass --
+ *     Return whether the session was configured to bypass the internal access checks; only for
+ *     debugging and repair.
+ */
+static bool
+__schema_internal_access_bypass(WT_SESSION_IMPL *session)
+{
+    return (F_ISSET(session, WT_SESSION_DEBUG_ALLOW_INTERNAL_ACCESS));
+}
+
+/*
+ * __schema_internals_check_skip --
+ *     Return whether the internal table and WiredTiger name space checks are skipped; they only
+ *     apply to direct application calls in diagnostic builds.
+ */
+static bool
+__schema_internals_check_skip(WT_SESSION_IMPL *session)
+{
+#ifdef HAVE_DIAGNOSTIC
+    /* Nested API calls may access internal files on behalf of a logical table operation. */
+    return (__schema_internal_access_bypass(session) || !(API_USER_ENTRY(session)) ||
+      F_ISSET(session, WT_SESSION_INTERNAL));
+#else
+    WT_UNUSED(session);
+    return (true);
+#endif
+}
+
+/*
  * __str_name_check --
- *     Internal function to disallow any use of the WiredTiger name space. Can be called directly or
- *     after skipping the URI prefix.
+ *     Internal function to disallow use of the WiredTiger name space and other internal entities.
  */
 static int
-__str_name_check(WT_SESSION_IMPL *session, const char *name, bool skip_wt)
+__str_name_check(WT_SESSION_IMPL *session, const char *name, bool allow_wt)
 {
+    bool is_wt;
 
-    if (!skip_wt && WT_PREFIX_MATCH(name, "WiredTiger"))
-        WT_RET_MSG(session, EINVAL,
-          "%s: the \"WiredTiger\" name space may not be used by applications", name);
+    if (__schema_internal_access_bypass(session))
+        return (0);
 
     /*
      * Disallow JSON quoting characters -- the config string parsing code supports quoted strings,
@@ -131,54 +175,55 @@ __str_name_check(WT_SESSION_IMPL *session, const char *name, bool skip_wt)
     if (strpbrk(name, "{},:[]\\\"'") != NULL)
         WT_RET_MSG(session, EINVAL,
           "%s: WiredTiger objects should not include grouping characters in their names", name);
+
+    if (__schema_internals_check_skip(session))
+        return (0);
+
+    is_wt = WT_PREFIX_MATCH(name, "WiredTiger");
+    if (is_wt && !allow_wt)
+        WT_RET_MSG(session, EINVAL,
+          "%s: the \"WiredTiger\" name space may not be used by applications", name);
+
+    /*
+     * When WT namespace entries are allowed, it's also an exception for the constituent check as
+     * they don't have layered: entry that could be accessed.
+     */
+    if (!is_wt && __wt_session_is_layered_internal(session, name))
+        WT_RET_MSG(session, EINVAL,
+          "%s: direct access to an internal table is not allowed; configure the session with "
+          "debug=(allow_internal_access=true) for debugging/repairing.",
+          name);
+
     return (0);
 }
 
 /*
- * __wt_uri_name --
- *     Return the object name after all URI prefixes.
- */
-const char *
-__wt_uri_name(const char *uri)
-{
-    const char *sep;
-
-    if (uri == NULL)
-        return (NULL);
-    sep = strrchr(uri, ':');
-    return (sep == NULL ? uri : sep + 1);
-}
-
-/*
  * __wt_uri_name_check --
- *     Validate a URI against WiredTiger namespaces and reserved internal names.
+ *     Check the object name of a URI.
  */
 int
-__wt_uri_name_check(WT_SESSION_IMPL *session, const char *uri)
+__wt_uri_name_check(WT_SESSION_IMPL *session, const char *uri, bool allow_wt)
 {
     const char *name;
-    bool skip_wt;
 
-    name = __wt_uri_name(uri);
-    WT_RET(__wt_session_check_internal_uri(session, uri,
-      __wt_session_is_layered_internal(session, name) || __wt_session_is_global_internal(name)));
+    if (uri == NULL)
+        return (0);
 
-#ifdef HAVE_DIAGNOSTIC
-    skip_wt = strchr(uri, ':') == NULL ||
-      F_ISSET(session, WT_SESSION_INTERNAL | WT_SESSION_DEBUG_ALLOW_INTERNAL_ACCESS) ||
-      !(API_USER_ENTRY(session));
-#else
-    skip_wt = true;
-#endif
-    return (__str_name_check(session, name, skip_wt));
+    name = __schema_uri_name(uri);
+    if (name == uri)
+        WT_RET_MSG(
+          session, EINVAL, "%s: URI is expected to be passed; no colon separator detected", uri);
+
+    return (__str_name_check(session, name, allow_wt));
 }
 
 /*
  * __wt_name_check --
- *     Disallow any use of the WiredTiger name space.
+ *     Check a name or URI that is not nul-terminated.
  */
 int
-__wt_name_check(WT_SESSION_IMPL *session, const char *str, size_t len, bool check_uri)
+__wt_name_check(
+  WT_SESSION_IMPL *session, const char *str, size_t len, bool check_uri, bool allow_wt)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -187,8 +232,8 @@ __wt_name_check(WT_SESSION_IMPL *session, const char *str, size_t len, bool chec
 
     WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)len, str));
 
-    ret = check_uri ? __wt_uri_name_check(session, tmp->data) :
-                      __str_name_check(session, tmp->data, false);
+    ret = check_uri ? __wt_uri_name_check(session, tmp->data, allow_wt) :
+                      __str_name_check(session, tmp->data, allow_wt);
 
 err:
     __wt_scr_free(session, &tmp);

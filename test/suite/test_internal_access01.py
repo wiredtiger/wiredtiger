@@ -78,7 +78,7 @@ class test_internal_access01(wttest.WiredTigerTestCase, suite_subprocess):
             for uri in ('file:WiredTiger.wt', 'file:WiredTigerHS.wt'):
                 if wiredtiger.diagnostic_build():
                     self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                        lambda: self.session.open_cursor(uri), '/direct access to an internal table/')
+                        lambda: self.session.open_cursor(uri), '/name space may not be used/')
                 else:
                     with closing(self.session.open_cursor(uri)):
                         pass

@@ -1,5 +1,17 @@
 /*! @page internal_table_access Direct access to internal files
 
+Rules short:
+ - None of names either accessed externally or internally by WT should contain JSON quoting characters: "{},:[]\\\"'"
+ - All the session APIs as well as cursors API are allowed to access directly the following entities:
+    - Anything within WiredTiger namespace
+    - Global and local metadata and history store
+    - Layered tables constituents
+ - wt command line utility bypasses all these checks since it's mostly needed for debugging
+ - Some APIs like verify and salvage are allowed to access metadata and history store as they don't have other way
+   to access those, might be needed for recovery can shouldn't cause any harm
+    - Layered table constituents should still be accessed only through layered: prefixed entry in
+      this case.
+
 WiredTiger describes storage objects through metadata entries, including references to their
 backing data sources, and accesses those resources through different APIs and tools. Access
 checks should protect users from unintentionally accessing internal data through inappropriate

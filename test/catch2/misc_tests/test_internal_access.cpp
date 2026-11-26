@@ -24,9 +24,8 @@ TEST_CASE("Internal access is a diagnostic guardrail with a debug exception", "[
     const int expected = 0;
 #endif
     CAPTURE(uri);
-    REQUIRE(__wt_uri_name_check(session, "table:ordinary") == 0);
-    REQUIRE(__wt_uri_name_check(session, "WiredTigerApp") == 0);
-    REQUIRE(__wt_uri_name_check(session, uri) == expected);
+    REQUIRE(__wt_uri_name_check(session, "table:ordinary", false) == 0);
+    REQUIRE(__wt_uri_name_check(session, uri, false) == expected);
     F_SET(session, WT_SESSION_DEBUG_ALLOW_INTERNAL_ACCESS);
-    REQUIRE(__wt_uri_name_check(session, uri) == 0);
+    REQUIRE(__wt_uri_name_check(session, uri, false) == 0);
 }

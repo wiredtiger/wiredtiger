@@ -68,6 +68,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         cursor.close()
 
     def evict_metadata(self):
+        # TODO: Check whether the public metadata cursor can provide this eviction coverage.
         metadata_uri = "file:WiredTiger.wt"
         self.session.reconfigure('debug=(allow_internal_access=true)')
         try:

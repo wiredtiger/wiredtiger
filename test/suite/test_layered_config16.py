@@ -54,6 +54,7 @@ class test_layered_config16(wttest.WiredTigerTestCase):
         return value
 
     def make_legacy(self, uri):
+        # TODO: Use writable public metadata if no raw-file behavior is needed for this fixture.
         value = self.local_config(uri)
         self.assertIn('block_manager=disagg', value)
         debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
