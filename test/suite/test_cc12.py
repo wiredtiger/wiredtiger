@@ -219,6 +219,12 @@ class test_cc12(checkpoint_cleanup_resolved_base):
         # globally visible, leaving them clean and in memory.
         self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(self.truncate_ts))
         self.session.checkpoint()
+        # Eviction can leave an internal page dirty after the checkpoint completes. The walk
+        # below can read such a page back, and the checkpoint that precedes cleanup would then
+        # reconcile it and resolve the deleted refs. Reconcile it here instead, while the
+        # truncate is not yet globally visible, so the parents keep the fast-delete information
+        # and cleanup still has to process every deleted ref.
+        self.session.checkpoint()
 
         # Make the truncate globally visible, then walk the table: the walk frees the
         # fast-delete information of the deleted refs.
