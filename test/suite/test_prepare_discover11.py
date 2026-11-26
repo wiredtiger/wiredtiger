@@ -51,13 +51,12 @@ class test_prepare_discover11(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def _open_follower(self, checkpoint_meta, checkpoint_lsn):
+    def _open_follower(self, checkpoint_meta):
         conn_follow = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
-        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}",'
-            f'checkpoint_lsn={checkpoint_lsn})')
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         return conn_follow
 
     def _checkpoint(self, conn):
@@ -98,7 +97,7 @@ class test_prepare_discover11(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
         self._checkpoint(self.conn)
-        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
         # Roll back so the follower owns the claim.
         self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
@@ -106,7 +105,7 @@ class test_prepare_discover11(wttest.WiredTigerTestCase):
         self.conn.close('debug=(skip_checkpoint=true)')
 
         # ---- Phase 2 (Follower: claim and commit BEFORE step-up) ----
-        conn_follow = self._open_follower(checkpoint_meta, checkpoint_meta_lsn)
+        conn_follow = self._open_follower(checkpoint_meta)
         discover_session = conn_follow.open_session()
         discover_cursor = discover_session.open_cursor('prepared_discover:')
         claim_session = conn_follow.open_session()

@@ -85,7 +85,7 @@ class test_layered_tombstone_version_gate(wttest.WiredTigerTestCase):
 
         # The compatible_version records the encoding mode: unescaped raises the minimum reader
         # version to 2, escaped stays at 1.
-        (meta, meta_lsn) = self.disagg_get_checkpoint_install()
+        meta = self.disagg_get_complete_checkpoint_meta()
         self.assertIn(f'compatible_version={self.compatible_version}', meta)
 
         # Rewrite the compatible_version above this build's maximum reader version (2) to fake an
@@ -101,13 +101,11 @@ class test_layered_tombstone_version_gate(wttest.WiredTigerTestCase):
             'disaggregated=(role="follower")')
         with self.expectedStderrPattern('requires reader version'):
             with self.assertRaises(wiredtiger.WiredTigerError):
-                conn_follow.reconfigure(
-                    f'disaggregated=(checkpoint_meta="{gated}",checkpoint_lsn={meta_lsn})')
+                conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{gated}")')
 
         # The unmodified metadata still picks up, confirming the checkpoint itself is readable and
         # only the forged compatible_version was rejected.
-        conn_follow.reconfigure(
-            f'disaggregated=(checkpoint_meta="{meta}",checkpoint_lsn={meta_lsn})')
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
         s = conn_follow.open_session()
         rc = s.open_cursor(self.uri)
         s.begin_transaction('read_timestamp=' + self.timestamp_str(20))

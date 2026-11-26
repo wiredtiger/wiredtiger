@@ -53,17 +53,15 @@ ckpt_stat(WT_SESSION *session, int stat_key)
  *     Pick up one checkpoint's metadata onto this connection and wait for the pick-up to land.
  */
 static void
-ckpt_pick_up(WORKLOAD_STATE *state, WT_SESSION *session, const char *meta, size_t meta_size,
-  uint64_t checkpoint_lsn)
+ckpt_pick_up(WORKLOAD_STATE *state, WT_SESSION *session, const char *meta, size_t meta_size)
 {
     struct timespec start;
     __wt_epoch(NULL, &start);
 
     WT_CONNECTION *conn = session->connection;
     char meta_config[4096];
-    testutil_snprintf(meta_config, sizeof(meta_config),
-      "disaggregated=(checkpoint_meta=\"%.*s\",checkpoint_lsn=%" PRIu64 ")", (int)meta_size, meta,
-      checkpoint_lsn);
+    testutil_snprintf(meta_config, sizeof(meta_config), "disaggregated=(checkpoint_meta=\"%.*s\")",
+      (int)meta_size, meta);
     testutil_check(conn->reconfigure(conn, meta_config));
 
     const uint64_t delivered = ckpt_stat(session, WT_STAT_CONN_DISAGG_CHECKPOINT_DELIVERED_LSN);
@@ -103,7 +101,7 @@ ckpt_adopt_latest(WORKLOAD_STATE *state)
       __wt_atomic_load_uint64(&state->frontier_ts) >= ckpt_args.checkpoint_timestamp;
     if (adopt) {
         ckpt_pick_up(state, session, (const char *)ckpt_args.checkpoint_metadata.data,
-          ckpt_args.checkpoint_metadata.size, ckpt_args.checkpoint_lsn);
+          ckpt_args.checkpoint_metadata.size);
 
         state->adopted_ckpt_lsn = ckpt_args.checkpoint_lsn;
         println(
@@ -316,7 +314,7 @@ follower_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
         const bool first_ckpt = state->adopted_ckpt_lsn == 0;
 
         ckpt_pick_up(state, session, (const char *)ckpt_args.checkpoint_metadata.data,
-          ckpt_args.checkpoint_metadata.size, ckpt_args.checkpoint_lsn);
+          ckpt_args.checkpoint_metadata.size);
         state->adopted_ckpt_lsn = ckpt_args.checkpoint_lsn;
 
         println("Node %" PRIu32 ": pick-up at %" PRIu64 " (lsn %" PRIu64 "); frontier %" PRIu64,

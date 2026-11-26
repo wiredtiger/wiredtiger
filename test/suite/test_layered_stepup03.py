@@ -82,7 +82,7 @@ class test_layered_stepup03(eviction_util, wttest.WiredTigerTestCase):
         )
 
         # Capture checkpoint metadata while still the leader.
-        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
         # Transition from leader to follower role.
         # Eviction threads running concurrently should not crash when they
@@ -96,8 +96,7 @@ class test_layered_stepup03(eviction_util, wttest.WiredTigerTestCase):
 
         # Reopen as follower with the captured checkpoint metadata.
         config = (self.conn_config_follower() +
-                  f'disaggregated=(checkpoint_meta="{checkpoint_meta}",'
-                  f'checkpoint_lsn={checkpoint_lsn}),')
+                  f'disaggregated=(checkpoint_meta="{checkpoint_meta}"),')
         self.open_conn(".", config)
 
         # Verify all data is readable from the follower.

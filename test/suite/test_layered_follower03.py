@@ -109,10 +109,9 @@ class test_layered_follower03(wttest.WiredTigerTestCase):
         # Part 1: Just reopen the connection, keeping local files
         #
 
-        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
         self.reopen_conn()
-        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}",'
-            f'checkpoint_lsn={checkpoint_lsn})')
+        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         self.conn.reconfigure(f'disaggregated=(role="leader")')
 
         # Avoid checkpoint error with precise checkpoint

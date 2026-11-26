@@ -225,21 +225,12 @@ class DisaggConfigMixin:
         (_, _, _, m) = self.disagg_get_complete_checkpoint_ext(conn)
         return m
 
-    # The newest complete checkpoint as the server sees it: the metadata to install and the LSN of
-    # the entry that completed it, taken from the same page log record so the two always pair. A
-    # node is given both when it adopts a checkpoint, as the server passes the log entry's LSN
-    # along with the metadata it installs.
-    def disagg_get_checkpoint_install(self, conn=None):
-        (lsn, _, _, meta) = self.disagg_get_complete_checkpoint_ext(conn)
-        return (meta, lsn)
-
     # Deliver the newest checkpoint to the follower. Adopting it is asynchronous while transaction
     # snapshots that predate it are active, so a caller that needs the adoption observed must end
     # those snapshots and deliver again.
     def disagg_advance_checkpoint(self, conn_follower, conn_leader=None):
-        (m, lsn) = self.disagg_get_checkpoint_install(conn_leader)
-        conn_follower.reconfigure(
-            f'disaggregated=(checkpoint_meta="{m}",checkpoint_lsn={lsn})')
+        m = self.disagg_get_complete_checkpoint_meta(conn_leader)
+        conn_follower.reconfigure(f'disaggregated=(checkpoint_meta="{m}")')
 
     # Wait until every checkpoint delivered to the follower has been adopted. A caller that asserts
     # on state the adoption produces needs this: a delivery that raced a snapshot's release is
@@ -275,21 +266,20 @@ class DisaggConfigMixin:
         if conn_leader is None:
             conn_leader = self.conn
 
-        (meta, lsn) = self.disagg_get_checkpoint_install(conn_leader)
-
         # Leader step down
         conn_leader.reconfigure(f'disaggregated=(role="follower")')
 
+        meta = self.disagg_get_complete_checkpoint_meta(conn_leader)
+
         # Follower step up, including picking up the last complete checkpoint
         conn_follower.reconfigure(f'disaggregated=(checkpoint_meta="{meta}",' +\
-                                  f'checkpoint_lsn={lsn},role="leader")')
+                                  f'role="leader")')
 
     def reopen_disagg_conn(self, base_config, directory="."):
         """
         Reopen the connection.
         """
-        (meta, lsn) = self.disagg_get_checkpoint_install()
-        config = base_config + f'disaggregated=(checkpoint_meta="{meta}",checkpoint_lsn={lsn}),'
+        config = base_config + f'disaggregated=(checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}"),'
         # Step down to avoid shutdown checkpoint
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.close_conn()
@@ -303,6 +293,7 @@ class DisaggConfigMixin:
         if pickup_checkpoint:
             # Step down to avoid shutdown checkpoint
             self.conn.reconfigure('disaggregated=(role="follower")')
+            checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
         # Close the current connection
         self.close_conn()
@@ -325,9 +316,7 @@ class DisaggConfigMixin:
 
         # Pick up the last checkpoint
         if pickup_checkpoint:
-            (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
-            install = f'checkpoint_meta="{checkpoint_meta}",checkpoint_lsn={checkpoint_lsn}'
-            self.conn.reconfigure(f'disaggregated=({install})')
+            self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
 
         # Step up as the leader
         if step_up:

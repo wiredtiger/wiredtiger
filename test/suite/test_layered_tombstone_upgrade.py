@@ -130,7 +130,7 @@ class test_layered_tombstone_upgrade_escaped(tombstone_upgrade_base):
         # compatible_version and round-trips the colliding value written in that mode. Escaped
         # checkpoints stay readable by every version, so compatible_version stays at 1.
         self.leader_checkpoint()
-        (meta, meta_lsn) = self.disagg_get_checkpoint_install()
+        meta = self.disagg_get_complete_checkpoint_meta()
         self.assertIn('compatible_version=1', meta)
 
         conn_follow = self.wiredtiger_open('follower', self.follower_config())
@@ -148,13 +148,12 @@ class test_layered_tombstone_upgrade_escaped(tombstone_upgrade_base):
         # nor compatible_version; the reader defaults both to 1, which predates the unescaped
         # format, so the checkpoint means legacy escaped data and must be adopted as such.
         self.leader_checkpoint()
-        (meta, meta_lsn) = self.disagg_get_checkpoint_install()
+        meta = self.disagg_get_complete_checkpoint_meta()
         unversioned = re.sub(r',?(compatible_)?version=\d+', '', meta)
         self.assertNotIn('version=', unversioned)
 
         conn_follow = self.wiredtiger_open('follower', self.follower_config())
-        conn_follow.reconfigure(
-            f'disaggregated=(checkpoint_meta="{unversioned}",checkpoint_lsn={meta_lsn})')
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{unversioned}")')
         self.assertEqual(self.encoding_stat(conn_follow), 1)
         self.assert_reads(conn_follow, self.collide)
         conn_follow.close()
@@ -212,7 +211,7 @@ class test_layered_tombstone_upgrade_new_database(tombstone_upgrade_base):
         self.leader_checkpoint()
         self.assertEqual(self.encoding_stat(self.conn), 2)
         # The unescaped format is recorded by raising the minimum reader version.
-        (meta, meta_lsn) = self.disagg_get_checkpoint_install()
+        meta = self.disagg_get_complete_checkpoint_meta()
         self.assertIn('compatible_version=2', meta)
 
         # The colliding value is stored raw: reading the stable constituent directly, bypassing the
@@ -283,16 +282,14 @@ class test_layered_tombstone_upgrade_flip_panics(tombstone_upgrade_base, suite_s
         # of its version fields, then picks up the same checkpoint with its original
         # compatible_version=2 metadata, flipping the adopted mode. Expected to panic.
         self.leader_checkpoint()
-        (meta, meta_lsn) = self.disagg_get_checkpoint_install()
+        meta = self.disagg_get_complete_checkpoint_meta()
         unversioned = re.sub(r',?(compatible_)?version=\d+', '', meta)
         self.assertNotIn('version=', unversioned)
 
         conn_follow = self.wiredtiger_open('follower', self.follower_config())
-        conn_follow.reconfigure(
-            f'disaggregated=(checkpoint_meta="{unversioned}",checkpoint_lsn={meta_lsn})')
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{unversioned}")')
         self.assertEqual(self.encoding_stat(conn_follow), 1)
-        conn_follow.reconfigure(
-            f'disaggregated=(checkpoint_meta="{meta}",checkpoint_lsn={meta_lsn})')
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
 
     def test_flip_after_adoption_panics(self):
         # The shared storage changing its stable tombstone encoding under a live node is a
@@ -317,16 +314,14 @@ class test_layered_tombstone_upgrade_flip_panics(tombstone_upgrade_base, suite_s
         # checkpoint's original metadata, then picks up the same checkpoint stripped of its version
         # fields, which derives as legacy escaped. Expected to panic.
         self.leader_checkpoint()
-        (meta, meta_lsn) = self.disagg_get_checkpoint_install()
+        meta = self.disagg_get_complete_checkpoint_meta()
         unversioned = re.sub(r',?(compatible_)?version=\d+', '', meta)
         self.assertNotIn('version=', unversioned)
 
         conn_follow = self.wiredtiger_open('follower', self.follower_config())
-        conn_follow.reconfigure(
-            f'disaggregated=(checkpoint_meta="{meta}",checkpoint_lsn={meta_lsn})')
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
         self.assertEqual(self.encoding_stat(conn_follow), 2)
-        conn_follow.reconfigure(
-            f'disaggregated=(checkpoint_meta="{unversioned}",checkpoint_lsn={meta_lsn})')
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{unversioned}")')
 
     def test_flip_to_escaped_after_adoption_panics(self):
         # A node that adopted the unescaped format and is handed a legacy checkpoint must panic
