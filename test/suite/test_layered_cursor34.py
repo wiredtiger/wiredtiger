@@ -61,7 +61,7 @@ class test_layered_cursor34(wttest.WiredTigerTestCase):
 
         self.conn_follow = self.wiredtiger_open('follower',
             self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
-        self.session_follow = self.conn_follow.open_session('')
+        self.session_follow = self.conn_follow.open_session('debug=(allow_internal_access=true)')
         self.session_follow.create(self.uri, self.table_config)
         self.disagg_advance_checkpoint_and_wait(self.conn_follow)
 

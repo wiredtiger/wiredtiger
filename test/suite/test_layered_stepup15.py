@@ -41,6 +41,7 @@ class test_layered_stepup15(wttest.WiredTigerTestCase):
     ingest_uri = f'file:{table}.wt_ingest'
     skip_msg = 'step-up drain skipped'
     read_ts = (6, 9, 15, 22, 28)
+    session_config = 'debug=(allow_internal_access=true)'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     workloads = [
@@ -102,7 +103,7 @@ class test_layered_stepup15(wttest.WiredTigerTestCase):
 
         self.conn.reconfigure('disaggregated=(role="follower")')
         if self.rollback_before_remove:
-            prepared = self.conn.open_session()
+            prepared = self.conn.open_session(self.session_config)
             c = prepared.open_cursor(self.ingest_uri)
             prepared.begin_transaction()
             c['k'] = b'\x14\x14'

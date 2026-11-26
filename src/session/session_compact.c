@@ -450,7 +450,7 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     WT_ERR(__wt_txn_context_check(session, false));
 
     /* Disallow objects in the WiredTiger name space. */
-    WT_ERR(__wt_str_name_check(session, uri));
+    WT_ERR(__wt_uri_name_check(session, uri, false));
 
     if (!WT_PREFIX_MATCH(uri, "colgroup:") && !WT_PREFIX_MATCH(uri, "file:") &&
       !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, "table:")) {

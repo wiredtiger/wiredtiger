@@ -51,7 +51,11 @@ class test_truncate35(wttest.WiredTigerTestCase):
         return val
 
     def hs_has_window(self, start_ts, stop_ts):
-        c = self.session.open_cursor('file:WiredTigerHS.wt')
+        self.session.reconfigure('debug=(allow_internal_access=true)')
+        try:
+            c = self.session.open_cursor('file:WiredTigerHS.wt')
+        finally:
+            self.session.reconfigure('debug=(allow_internal_access=false)')
         found = False
         for _bid, _key, hs_start_ts, _cnt, hs_stop_ts, *_rest in c:
             if hs_start_ts == start_ts and hs_stop_ts == stop_ts:

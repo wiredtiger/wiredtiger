@@ -1,0 +1,59 @@
+/*! @page internal_table_access Direct access to internal files
+
+WiredTiger describes storage objects through metadata entries and accesses those resources through
+different APIs and tools. Access checks should protect users from unintentionally accessing internal
+data through inappropriate entry paths.
+
+The rule of thumb is to restrict default write access to internal tables. Selected tools may
+expose internal tables for reading when there is no other suitable interface, while tools
+dedicated to debugging or repair may access internal files by default.
+
+@note All internal-object and URI-namespace admission checks described below are diagnostic
+guardrails. Non-diagnostic builds do not enforce them. Sessions configured with
+<code>debug=(allow_internal_access=true)</code> bypass these checks.
+
+@section internal_table_access_checks Access matrix
+
+The table shows which APIs may directly access internal objects.
+
+<table>
+<tr>
+<th>API / entry-path group</th>
+<th>Ingest / stable constituents</th>
+<th>WiredTiger-prefixed names (including metadata and history store)</th>
+</tr>
+<tr>
+<td><b>Cursor opens</b><br>
+WT_SESSION::open_cursor, except statistics cursors and cursors configured with
+<code>debug=(release_evict=true)</code></td>
+<td colspan="2">Reject</td>
+</tr>
+<tr>
+<td><b>Schema/mutation APIs and tools</b><br>
+(WT_SESSION::create, including explicit source, WT_SESSION::drop, WT_SESSION::alter,
+foreground WT_SESSION::compact, WT_SESSION::truncate with a URI, WT_SESSION::publish;
+MCP <code>create_table/drop_table/alter_table/truncate</code>)</td>
+<td colspan="2">Reject</td>
+</tr>
+<tr>
+<td><b>Verification and salvage</b><br>
+(WT_SESSION::verify, including dump and size-repair options, WT_SESSION::salvage;
+MCP <code>verify_table/dump_block</code>)</td>
+<td>Reject: use logical layered verification where supported</td>
+<td>Allow: maintenance access</td>
+</tr>
+<tr>
+<td><b>Comparison scripts</b><br>
+(<code>wt_cmp_uri.py</code>, <code>wt_cmp_dir</code>)</td>
+<td colspan="2">Allow: debugging tools; internal access enabled</td>
+</tr>
+<tr>
+<td><b><code>wt</code> command-line utility</b><br>
+(all supported subcommands, including schema/mutation, <code>dump -e</code>, and
+<code>page</code> with a URI or <code>-t table_id</code>; wrappers invoking <code>wt</code>,
+including <code>wt_verify.py</code>)</td>
+<td colspan="2">Allow: debugging/repair tool; internal access enabled by default</td>
+</tr>
+</table>
+
+*/

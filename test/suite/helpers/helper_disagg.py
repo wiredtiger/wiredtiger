@@ -889,12 +889,12 @@ class DisaggSchemaEpochMixin:
 
     def uri_in_shared_metadata(self, conn, uri):
         """Return True if uri's stable constituent is present in the shared metadata table."""
-        session = conn.open_session('')
-        cursor = session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
+        debug_session = conn.open_session('debug=(allow_internal_access=true)')
+        cursor = debug_session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
         cursor.set_key(self.stable_uri(uri))
         found = cursor.search() == 0
         cursor.close()
-        session.close()
+        debug_session.close()
         return found
 
     def uri_stable_exists(self, conn, uri):
@@ -978,7 +978,7 @@ class DisaggSchemaEpochMixin:
         Write a stable file entry straight into a node's local metadata, bypassing the read-only
         metadata cursor. Used to plant metadata a node could not have reached legitimately.
         """
-        session = conn.open_session('')
+        session = conn.open_session('debug=(allow_internal_access=true)')
         cursor = session.open_cursor('file:WiredTiger.wt')
         cursor.set_key(key)
         cursor.set_value(config)

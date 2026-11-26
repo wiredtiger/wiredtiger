@@ -27,6 +27,9 @@ static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=s
 #define SALVAGE "salvage=true"
 #define VERIFY_METADATA "verify_metadata=true"
 
+/* The utility is a debugging tool and needs unrestricted internal-object access. */
+#define UTIL_SESSION_CONFIG "debug=(allow_internal_access=true)"
+
 typedef int (*util_func_t)(WT_SESSION *, int, char *[]);
 static util_func_t disagg_supported[] = {
   util_dump, util_list, util_page, util_read, util_stat, util_turtle, util_verify};
@@ -251,7 +254,8 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     }
 
-    cmd_config = conn_config = live_restore_path = session_config = secretkey = NULL;
+    cmd_config = conn_config = live_restore_path = secretkey = NULL;
+    session_config = UTIL_SESSION_CONFIG;
     /*
      * We default to returning an error if recovery needs to be run. Generally we expect this to be
      * run after a clean shutdown. The printlog command disables logging entirely. If recovery is
@@ -421,7 +425,7 @@ main(int argc, char *argv[])
                 conn_config = "prefetch=(available=false,default=false)";
             else {
                 conn_config = "prefetch=(available=true,default=false)";
-                session_config = "prefetch=(enabled=true)";
+                session_config = UTIL_SESSION_CONFIG ",prefetch=(enabled=true)";
             }
         }
         break;

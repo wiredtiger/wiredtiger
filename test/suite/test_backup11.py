@@ -186,20 +186,20 @@ class test_backup11(backup_base):
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor('backup:', None, config))
 
-        # - Test opening a primary backup with an id in WiredTiger namespace.
-        self.pr("Test incremental with illegal src identifier using WiredTiger namespace")
-        self.pr("=========")
-        msg = '/name space may not/'
-        config = 'incremental=(enabled,src_id="WiredTiger.0")'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.open_cursor('backup:', None, config), msg)
+        # - Test opening a primary backup with an id in WiredTiger namespace (diagnostic builds).
+        if wiredtiger.diagnostic_build():
+            self.pr("Test incremental with illegal src identifier using WiredTiger namespace")
+            self.pr("=========")
+            msg = '/name space may not/'
+            config = 'incremental=(enabled,src_id="WiredTiger.0")'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.open_cursor('backup:', None, config), msg)
 
-        # - Test opening a primary backup with an id in WiredTiger namespace.
-        self.pr("Test incremental with illegal this identifier using WiredTiger namespace")
-        self.pr("=========")
-        config = 'incremental=(enabled,this_id="WiredTiger.ID")'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.open_cursor('backup:', None, config), msg)
+            self.pr("Test incremental with illegal this identifier using WiredTiger namespace")
+            self.pr("=========")
+            config = 'incremental=(enabled,this_id="WiredTiger.ID")'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.open_cursor('backup:', None, config), msg)
 
         # - Test opening a primary backup with an id using illegal characters.
         self.pr("Test incremental with illegal source identifier using illegal colon character")

@@ -66,9 +66,11 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
 
     # Return the number of data and tombstone items in the ingest table.
     def count_ingest(self, session, ts=None, verbose=False):
+        # Use a dedicated session as the ingest table is internal.
+        debug_session = session.connection.open_session('debug=(allow_internal_access=true)')
         if ts != None:
-            session.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
-        cursor = session.open_cursor(self.ingest_uri)
+            debug_session.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
+        cursor = debug_session.open_cursor(self.ingest_uri)
         countData = 0
         countTombstone = 0
         for k,v in cursor:
@@ -78,7 +80,8 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
                 countTombstone += 1
         cursor.close()
         if ts != None:
-            session.rollback_transaction()
+            debug_session.rollback_transaction()
+        debug_session.close()
         return (countData, countTombstone)
 
     def setup(self):

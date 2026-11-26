@@ -76,11 +76,13 @@ class test_layered_tombstone_legacy(wttest.WiredTigerTestCase, suite_subprocess)
         self.session.create(self.uri, "key_format=S,value_format=u")
 
         # Write malformed legacy tombstone bytes directly to stable, bypassing the layered encoder.
-        c = self.session.open_cursor(self.stable_uri)
-        self.session.begin_transaction()
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        c = debug_session.open_cursor(self.stable_uri)
+        debug_session.begin_transaction()
         c["k"] = b"\x14\x14x"
-        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
+        debug_session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
         c.close()
+        debug_session.close()
 
         # Reading it back through the layered cursor trips the decode assertion.
         c = self.session.open_cursor(self.uri)
@@ -92,11 +94,13 @@ class test_layered_tombstone_legacy(wttest.WiredTigerTestCase, suite_subprocess)
         self.session.create(self.uri, "key_format=S,value_format=u")
 
         # Write malformed tombstone bytes directly to ingest, bypassing the layered encoder.
-        c = self.session.open_cursor(self.ingest_uri)
-        self.session.begin_transaction()
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        c = debug_session.open_cursor(self.ingest_uri)
+        debug_session.begin_transaction()
         c["k"] = b"\x14\x14x"
-        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
+        debug_session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
         c.close()
+        debug_session.close()
 
         self.conn.reconfigure('disaggregated=(role="follower")')
 
@@ -118,11 +122,13 @@ class test_layered_tombstone_legacy(wttest.WiredTigerTestCase, suite_subprocess)
 
         # Write the raw tombstone bytes straight into the stable constituent, bypassing the layered
         # encoding a normal write would apply.
-        c = self.session.open_cursor(self.stable_uri)
-        self.session.begin_transaction()
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        c = debug_session.open_cursor(self.stable_uri)
+        debug_session.begin_transaction()
         c['k'] = b'\x14\x14'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+        debug_session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
         c.close()
+        debug_session.close()
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         self.session.checkpoint()
