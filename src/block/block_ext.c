@@ -27,6 +27,7 @@ static int __block_ext_overlap(
   WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, WT_EXT **, WT_EXTLIST *, WT_EXT **);
 static int __block_extlist_dump_buckets(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, const char *);
 static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
+static WT_INLINE void __block_size_srch(WT_SIZE **, wt_off_t, WT_SIZE ***);
 
 /*
  * __block_off_srch_last --
@@ -88,30 +89,43 @@ __block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
 
 /*
  * __block_first_srch --
- *     Search the skiplist for the first available slot.
+ *     Search an extent list for the lowest-offset extent that is at least the requested size.
  */
 static WT_INLINE bool
-__block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size, WT_EXT ***stack)
+__block_first_srch(WT_SESSION_IMPL *session, WT_EXTLIST *el, wt_off_t size, WT_EXT ***stack)
 {
     WT_EXT *ext;
-    uint64_t time_start = __wt_clock(session);
+    WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
+    uint64_t time_start, time_stop;
 
-    /*
-     * Linear walk of the available chunks in offset order; take the first one that's large enough.
-     */
-    WT_EXT_FOREACH (ext, head)
-        if (ext->size >= size)
-            break;
+    time_start = __wt_clock(session);
 
-    uint64_t time_stop = __wt_clock(session);
-    uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
-    WT_STAT_CONN_SET(session, block_first_srch_walk_time, elapsed);
+    /* The lowest-offset extent is the first-fit answer whenever it is large enough. */
+    ext = el->off[0];
+    if (ext == NULL || ext->size < size) {
+        /*
+         * Each size bucket holds extents sorted by offset. Compare the heads of all size-sufficient
+         * buckets to find the lowest offset without walking every available extent.
+         */
+        __block_size_srch(el->sz, size, sstack);
+        if ((szp = *sstack[0]) == NULL)
+            ext = NULL;
+        else {
+            ext = szp->off[0];
+            for (szp = szp->next[0]; szp != NULL; szp = szp->next[0])
+                if (szp->off[0]->off < ext->off)
+                    ext = szp->off[0];
+        }
+    }
+
+    time_stop = __wt_clock(session);
+    WT_STAT_CONN_SET(session, block_first_srch_walk_time, WT_CLOCKDIFF_US(time_stop, time_start));
 
     if (ext == NULL)
         return (false);
 
     /* Build a stack for the offset we want. */
-    __block_off_srch(head, ext->off, stack, false);
+    __block_off_srch(el->off, ext->off, stack, false);
     return (true);
 }
 
@@ -615,7 +629,8 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
 
     /*
      * Allocation is either first-fit (lowest offset), or best-fit (best size). If it's first-fit,
-     * walk the offset list linearly until we find an entry that will work.
+     * compare the lowest offsets in the size buckets that are large enough instead of walking the
+     * by-offset list.
      *
      * If it's best-fit by size, search the by-size skiplist for the size and take the first entry
      * on the by-size offset list. This means we prefer best-fit over lower offset, but within a
@@ -626,7 +641,7 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
     if (block->live.avail.bytes < (uint64_t)size)
         goto append;
     if (block->allocfirst) {
-        if (!__block_first_srch(session, block->live.avail.off, size, estack))
+        if (!__block_first_srch(session, &block->live.avail, size, estack))
             goto append;
         ext = *estack[0];
     } else {
@@ -1674,9 +1689,9 @@ __ut_block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
 }
 
 bool
-__ut_block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size, WT_EXT ***stack)
+__ut_block_first_srch(WT_SESSION_IMPL *session, WT_EXTLIST *el, wt_off_t size, WT_EXT ***stack)
 {
-    return (__block_first_srch(session, head, size, stack));
+    return (__block_first_srch(session, el, size, stack));
 }
 
 void
