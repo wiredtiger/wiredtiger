@@ -499,7 +499,6 @@ static const struct {
         uint64_t update_restore_evict;
     } Debug_mode;
     struct {
-        uint64_t checkpoint_lsn;
         uint64_t checkpoint_meta;
         uint64_t drain_threads;
         uint64_t last_materialized_lsn;
@@ -932,7 +931,6 @@ static const struct {
     WT_CONF_ID_Debug_mode | (WT_CONF_ID_update_restore_evict << 16),
   },
   {
-    WT_CONF_ID_Disaggregated | (WT_CONF_ID_checkpoint_lsn << 16),
     WT_CONF_ID_Disaggregated | (WT_CONF_ID_checkpoint_meta << 16),
     WT_CONF_ID_Disaggregated | (WT_CONF_ID_drain_threads << 16),
     WT_CONF_ID_Disaggregated | (WT_CONF_ID_last_materialized_lsn << 16),

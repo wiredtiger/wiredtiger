@@ -108,10 +108,10 @@ class test_prepare_discover09(wttest.WiredTigerTestCase):
         c_layered.close()
 
     def reopen_as_follower(self):
-        (meta, meta_lsn) = self.disagg_get_checkpoint_install()
+        meta = self.disagg_get_complete_checkpoint_meta()
         reopen_config = (self.conn_base_config +
                          'disaggregated=(role="follower",' +
-                         f'checkpoint_meta="{meta}",checkpoint_lsn={meta_lsn})')
+                         f'checkpoint_meta="{meta}")')
         self.reopen_conn(config=reopen_config)
 
     def discover_and_resolve(self, resolve):

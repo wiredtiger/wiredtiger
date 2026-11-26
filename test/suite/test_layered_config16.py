@@ -76,13 +76,13 @@ class test_layered_config16(wttest.WiredTigerTestCase):
 
     def populate(self):
         self.populate_table()
-        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
         # A follower does not checkpoint, so the rewritten entries survive the restart.
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.make_legacy(self.shared_metadata_uri)
         self.make_legacy(self.stable_uri)
-        return (checkpoint_meta, checkpoint_lsn)
+        return checkpoint_meta
 
     def check_read(self):
         cursor = self.session.open_cursor(self.uri)
@@ -98,10 +98,9 @@ class test_layered_config16(wttest.WiredTigerTestCase):
         self.assertEqual(self.session.verify(self.stable_uri), 0)
 
     def test_legacy_follower(self):
-        (checkpoint_meta, checkpoint_lsn) = self.populate()
+        checkpoint_meta = self.populate()
         self.reopen_conn(config=self.follower_config)
-        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}",'
-            f'checkpoint_lsn={checkpoint_lsn})')
+        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         self.check_read()
 
     def test_new_shared_files_have_disagg_block_manager(self):

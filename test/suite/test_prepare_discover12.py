@@ -54,14 +54,13 @@ class test_prepare_discover12(wttest.WiredTigerTestCase):
 
     # ---- helpers ----
 
-    def _open_follower(self, checkpoint_meta, checkpoint_lsn):
+    def _open_follower(self, checkpoint_meta):
         """Open a follower connection seeded with the given checkpoint."""
         conn_follow = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
-        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}",'
-            f'checkpoint_lsn={checkpoint_lsn})')
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         return conn_follow
 
     def _checkpoint(self, conn):
@@ -97,9 +96,9 @@ class test_prepare_discover12(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(stable_ts))
         self._checkpoint(self.conn)
-        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
         self.conn.close('debug=(skip_checkpoint=true)')
-        return (checkpoint_meta, checkpoint_meta_lsn)
+        return checkpoint_meta
 
     def _prepare_then_rollback(self, conn, key, value, prepared_id, prepare_ts, rollback_ts):
         """Perform a prepared INSERT for `key` and roll it back with a rollback
@@ -151,10 +150,10 @@ class test_prepare_discover12(wttest.WiredTigerTestCase):
         key must remain absent on the leader after the rollback timestamp
         becomes stable, including after the carrying page is evicted and
         re-read."""
-        (checkpoint_meta, checkpoint_meta_lsn) = self._create_leader_baseline(
+        checkpoint_meta = self._create_leader_baseline(
             baseline_key=100, baseline_value='baseline',
             baseline_commit_ts=60, stable_ts=70)
-        conn = self._open_follower(checkpoint_meta, checkpoint_meta_lsn)
+        conn = self._open_follower(checkpoint_meta)
 
         self._prepare_then_rollback(conn, key=1, value='rolled_back_insert',
             prepared_id=77777, prepare_ts=100, rollback_ts=110)
@@ -187,10 +186,10 @@ class test_prepare_discover12(wttest.WiredTigerTestCase):
         The key state must remain correct even when the stable timestamp falls
         between the rollback timestamp and the newer commit timestamp at
         checkpoint time and the carrying page is then evicted."""
-        (checkpoint_meta, checkpoint_meta_lsn) = self._create_leader_baseline(
+        checkpoint_meta = self._create_leader_baseline(
             baseline_key=100, baseline_value='baseline',
             baseline_commit_ts=60, stable_ts=70)
-        conn = self._open_follower(checkpoint_meta, checkpoint_meta_lsn)
+        conn = self._open_follower(checkpoint_meta)
 
         self._prepare_then_rollback(conn, key=1, value='rolled_back_insert',
             prepared_id=88888, prepare_ts=100, rollback_ts=110)

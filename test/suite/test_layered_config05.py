@@ -110,17 +110,16 @@ class test_layered_config05(wttest.WiredTigerTestCase):
         # Part 2: Start a node with the older version of address cookies.
         #
         self.conn.reconfigure('disaggregated=(role="follower")') # Avoid shutdown checkpoint
-        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
         self.restart_without_local_files(pickup_checkpoint=False,
             config=self.conn_config + ',debug_mode=(disagg_address_cookie_upgrade=none)')
 
         # Pickup the latest checkpoint.
-        install = f'checkpoint_meta="{checkpoint_meta}",checkpoint_lsn={checkpoint_lsn}'
         if self.compatible:
-            self.conn.reconfigure(f'disaggregated=({install})')
+            self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         else:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: self.conn.reconfigure(f'disaggregated=({install})'),
+                lambda: self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")'),
                 '/Unsupported disaggregated address cookie version/')
 
         # If compatible, then check if the data is present and make more changes. Otherwise,

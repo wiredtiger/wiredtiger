@@ -102,10 +102,9 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
 
         if self.start_role == 'follower':
             # Provide the leader checkpoint so the follower can open the table.
-            (meta, checkpoint_lsn) = self.disagg_get_checkpoint_install(conn)
+            meta = self.disagg_get_complete_checkpoint_meta(conn)
             self.assertIsNotNone(meta, 'expected a complete checkpoint from the leader')
-            conn.reconfigure(
-                f'disaggregated=(checkpoint_meta="{meta}",checkpoint_lsn={checkpoint_lsn})')
+            conn.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
             # Leave the handle unopened for the stat-cursor case so that opening the statistics
             # cursor during the transition triggers a first-time handle open.
             if self.op != 'stat_cursor':

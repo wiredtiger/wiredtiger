@@ -363,8 +363,6 @@ static const char *confchk_strict_checkpoint_metadata_choices[] = {
   __WT_CONFIG_CHOICE_false, __WT_CONFIG_CHOICE_true, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_disaggregated_subconfigs[] = {
-  {"checkpoint_lsn", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 55, INT64_MIN,
-    INT64_MAX, NULL},
   {"checkpoint_meta", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 64,
     INT64_MIN, INT64_MAX, NULL},
   {"drain_threads", "int", NULL, "min=1,max=256", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 65, 1,
@@ -387,7 +385,7 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 2, 3, 3, 3, 3, 3, 3, 3, 3, 6, 6, 6, 6, 6, 6, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8};
+    0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 5, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7};
 const char __WT_CONFIG_CHOICE_auto[] = "auto";
 const char __WT_CONFIG_CHOICE_off[] = "off";
 const char __WT_CONFIG_CHOICE_on[] = "on";
@@ -818,7 +816,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     confchk_wiredtiger_open_debug_mode_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 226,
     INT64_MIN, INT64_MAX, NULL},
   {"disaggregated", "category", NULL, NULL,
-    confchk_WT_CONNECTION_reconfigure_disaggregated_subconfigs, 8,
+    confchk_WT_CONNECTION_reconfigure_disaggregated_subconfigs, 7,
     confchk_WT_CONNECTION_reconfigure_disaggregated_subconfigs_jump,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 20, INT64_MIN, INT64_MAX, NULL},
   {"error_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 258,
@@ -2295,8 +2293,6 @@ static const char *confchk_strict_checkpoint_metadata2_choices[] = {
   __WT_CONFIG_CHOICE_false, __WT_CONFIG_CHOICE_true, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_disaggregated_subconfigs[] = {
-  {"checkpoint_lsn", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 55, INT64_MIN,
-    INT64_MAX, NULL},
   {"checkpoint_meta", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 64,
     INT64_MIN, INT64_MAX, NULL},
   {"drain_threads", "int", NULL, "min=1,max=256", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 65, 1,
@@ -2325,8 +2321,8 @@ static const uint8_t
   confchk_wiredtiger_open_disaggregated_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
-    3, 3, 3, 3, 3, 3, 3, 3, 7, 7, 7, 7, 8, 8, 9, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11};
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    2, 2, 2, 2, 2, 2, 2, 2, 6, 6, 6, 6, 7, 7, 8, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
 
 static const char *confchk_verbose8_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
@@ -2344,7 +2340,7 @@ static const WT_CONFIG_CHECK confchk_layered_meta[] = {
     INT64_MAX, NULL},
   {"columns", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 7, INT64_MIN,
     INT64_MAX, NULL},
-  {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 11,
+  {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 10,
     confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"ingest", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 73, INT64_MIN,
@@ -2735,7 +2731,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"direct_io", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 356, INT64_MIN,
     INT64_MAX, NULL},
-  {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 11,
+  {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 10,
     confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_wiredtiger_open_encryption_subconfigs, 3,
@@ -3036,7 +3032,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"direct_io", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 356, INT64_MIN,
     INT64_MAX, NULL},
-  {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 11,
+  {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 10,
     confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_wiredtiger_open_encryption_subconfigs, 3,
@@ -3336,7 +3332,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"direct_io", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 356, INT64_MIN,
     INT64_MAX, NULL},
-  {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 11,
+  {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 10,
     confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_wiredtiger_open_encryption_subconfigs, 3,
@@ -3626,7 +3622,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"direct_io", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 356, INT64_MIN,
     INT64_MAX, NULL},
-  {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 11,
+  {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 10,
     confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_wiredtiger_open_encryption_subconfigs, 3,
@@ -3858,7 +3854,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "rollback_error=0,slow_checkpoint=false,slow_truncate=false,"
     "stress_skiplist=false,table_logging=false,"
     "timing_stress_force=false,update_restore_evict=false),"
-    "disaggregated=(checkpoint_lsn=,checkpoint_meta=,drain_threads=8,"
+    "disaggregated=(checkpoint_meta=,drain_threads=8,"
     "last_materialized_lsn=,local_files_action=delete,"
     "lose_all_my_data=false,role=,strict_checkpoint_metadata=),"
     "error_prefix=,eviction=(app_eviction_min_cache_fill_ratio=0,"
@@ -4083,8 +4079,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
   {"layered.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
-    "collator=,columns=,disaggregated=(checkpoint_lsn=,"
-    "checkpoint_meta=,drain_threads=8,last_materialized_lsn=,"
+    "collator=,columns=,disaggregated=(checkpoint_meta=,"
+    "drain_threads=8,last_materialized_lsn=,"
     "legacy_tombstone_encoding_break_glass=,local_files_action=delete"
     ",lose_all_my_data=false,page_log=,role=,"
     "stepdown_write_mirroring=true,strict_checkpoint_metadata=),"
@@ -4130,8 +4126,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "rollback_error=0,slow_checkpoint=false,slow_truncate=false,"
     "stress_skiplist=false,table_logging=false,"
     "timing_stress_force=false,update_restore_evict=false),direct_io="
-    ",disaggregated=(checkpoint_lsn=,checkpoint_meta=,drain_threads=8"
-    ",last_materialized_lsn=,legacy_tombstone_encoding_break_glass=,"
+    ",disaggregated=(checkpoint_meta=,drain_threads=8,"
+    "last_materialized_lsn=,legacy_tombstone_encoding_break_glass=,"
     "local_files_action=delete,lose_all_my_data=false,page_log=,role="
     ",stepdown_write_mirroring=true,strict_checkpoint_metadata=),"
     "encryption=(keyid=,name=,secretkey=),error_prefix=,"
@@ -4210,8 +4206,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "rollback_error=0,slow_checkpoint=false,slow_truncate=false,"
     "stress_skiplist=false,table_logging=false,"
     "timing_stress_force=false,update_restore_evict=false),direct_io="
-    ",disaggregated=(checkpoint_lsn=,checkpoint_meta=,drain_threads=8"
-    ",last_materialized_lsn=,legacy_tombstone_encoding_break_glass=,"
+    ",disaggregated=(checkpoint_meta=,drain_threads=8,"
+    "last_materialized_lsn=,legacy_tombstone_encoding_break_glass=,"
     "local_files_action=delete,lose_all_my_data=false,page_log=,role="
     ",stepdown_write_mirroring=true,strict_checkpoint_metadata=),"
     "encryption=(keyid=,name=,secretkey=),error_prefix=,"
@@ -4291,8 +4287,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "rollback_error=0,slow_checkpoint=false,slow_truncate=false,"
     "stress_skiplist=false,table_logging=false,"
     "timing_stress_force=false,update_restore_evict=false),direct_io="
-    ",disaggregated=(checkpoint_lsn=,checkpoint_meta=,drain_threads=8"
-    ",last_materialized_lsn=,legacy_tombstone_encoding_break_glass=,"
+    ",disaggregated=(checkpoint_meta=,drain_threads=8,"
+    "last_materialized_lsn=,legacy_tombstone_encoding_break_glass=,"
     "local_files_action=delete,lose_all_my_data=false,page_log=,role="
     ",stepdown_write_mirroring=true,strict_checkpoint_metadata=),"
     "encryption=(keyid=,name=,secretkey=),error_prefix=,"
@@ -4371,8 +4367,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "rollback_error=0,slow_checkpoint=false,slow_truncate=false,"
     "stress_skiplist=false,table_logging=false,"
     "timing_stress_force=false,update_restore_evict=false),direct_io="
-    ",disaggregated=(checkpoint_lsn=,checkpoint_meta=,drain_threads=8"
-    ",last_materialized_lsn=,legacy_tombstone_encoding_break_glass=,"
+    ",disaggregated=(checkpoint_meta=,drain_threads=8,"
+    "last_materialized_lsn=,legacy_tombstone_encoding_break_glass=,"
     "local_files_action=delete,lose_all_my_data=false,page_log=,role="
     ",stepdown_write_mirroring=true,strict_checkpoint_metadata=),"
     "encryption=(keyid=,name=,secretkey=),error_prefix=,"
