@@ -19,7 +19,8 @@
  * it can step aside. Check the answer with no writer, with a writer queued, and after the writer is
  * done.
  */
-
+/* The pthread implementation does not report queued writers. */
+#if READ_WRITE_LOCK_TYPE != READ_WRITE_LOCK_PTHREAD
 namespace {
 
 WT_SESSION_IMPL *
@@ -89,3 +90,4 @@ TEST_CASE("Read/write lock reports a writer queued behind its readers", "[rwlock
 
     __wt_rwlock_destroy(reader, &lock);
 }
+#endif

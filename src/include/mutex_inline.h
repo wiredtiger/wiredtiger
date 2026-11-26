@@ -409,6 +409,18 @@ __wt_spin_trylock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
     return (__wt_spin_trylock(session, t));
 }
 
+#if READ_WRITE_LOCK_TYPE == READ_WRITE_LOCK_PTHREAD
+/*
+ * __wt_rwlock_writer_waiting --
+ *     Disable the writer-waiting hint for pthread read/write locks.
+ */
+static WT_INLINE bool
+__wt_rwlock_writer_waiting(WT_RWLOCK *l)
+{
+    WT_UNUSED(l);
+    return (false);
+}
+#elif READ_WRITE_LOCK_TYPE == READ_WRITE_LOCK_CUSTOM
 /*
  * __wt_rwlock_writer_waiting --
  *     Return if a writer is queued on a read/write lock the caller holds for reading.
@@ -421,3 +433,6 @@ __wt_rwlock_writer_waiting(WT_RWLOCK *l)
     lock.u.v = __wt_atomic_load_uint64_v_relaxed(&l->u.v);
     return (lock.u.s.current != lock.u.s.next);
 }
+#else
+#error Unknown read/write lock type
+#endif
