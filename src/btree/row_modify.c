@@ -405,8 +405,10 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
 {
     WT_PAGE *page;
     WT_TXN_GLOBAL *txn_global;
-    WT_UPDATE *first;
+    WT_UPDATE *blocker, *first;
+    uint8_t prepare_state;
     u_int count;
+    bool hs_max_stop;
 
     page = cbt->ref->page;
     txn_global = &S2C(session)->txn_global;
@@ -425,6 +427,8 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
      *
      * Only updates with globally visible, self-contained data can terminate update chains.
      */
+    blocker = NULL;
+    hs_max_stop = false;
     for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
         /*
          * This function is only invoked when a new write is made. As a result, there is no risk of
@@ -437,14 +441,17 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
         /* Cannot truncate the updates if we need to remove the updates from the history store. */
         if (F_ISSET(upd, WT_UPDATE_HS_MAX_STOP)) {
             first = NULL;
+            hs_max_stop = true;
             continue;
         }
 
         if (__wt_txn_upd_visible_all(session, upd)) {
             if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
                 first = upd;
-        } else
+        } else {
             first = NULL;
+            blocker = upd;
+        }
     }
 
     /*
@@ -467,8 +474,30 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
          */
         page->modify->obsolete_check_txn =
           __wt_atomic_load_uint64_v_relaxed(&txn_global->last_running);
+        page->modify->obsolete_check_skip = 0;
         if (txn_global->has_pinned_timestamp)
             page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
+
+        /*
+         * Every update older than the oldest update that isn't globally visible (the "blocker") is
+         * already globally visible, so nothing on this chain can become obsolete before the blocker
+         * itself does. If the blocker's transaction is already globally visible and only its
+         * durable timestamp is ahead of the pinned timestamp (the usual case with a snapshot
+         * history window), wait for that timestamp instead of the next transaction ID change, which
+         * would have us walk the whole chain again on the next update. The page-level skip budget
+         * bounds how far any chain on the page can grow without being checked, so the long update
+         * list check above still triggers no later than WT_THOUSAND updates.
+         */
+        if (blocker != NULL && !hs_max_stop && count < WT_THOUSAND &&
+          blocker->txnid != WT_TXN_NONE && blocker->upd_durable_ts != WT_TS_NONE) {
+            prepare_state = __wt_atomic_load_uint8_v_acquire(&blocker->prepare_state);
+            if (prepare_state != WT_PREPARE_INPROGRESS && prepare_state != WT_PREPARE_LOCKED &&
+              __wt_txn_visible_all(session, blocker->txnid, WT_TS_NONE)) {
+                page->modify->obsolete_check_txn = blocker->txnid;
+                page->modify->obsolete_check_timestamp = blocker->upd_durable_ts;
+                page->modify->obsolete_check_skip = WT_MIN(WT_THOUSAND - count, WT_HUNDRED);
+            }
+        }
     }
 
     WT_PAGE_UNLOCK(session, page);

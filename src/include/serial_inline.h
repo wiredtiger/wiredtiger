@@ -280,6 +280,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     WT_UPDATE *upd;
     wt_timestamp_t obsolete_timestamp, prev_upd_ts;
     uint64_t txn;
+    uint32_t skip;
 
     /* Clear references to memory we now own and must free on error. */
     upd = *updp;
@@ -358,7 +359,17 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      */
     if ((txn = page->modify->obsolete_check_txn) != WT_TXN_NONE) {
         obsolete_timestamp = page->modify->obsolete_check_timestamp;
-        if (!__wt_txn_visible_all(session, txn, obsolete_timestamp)) {
+        if ((skip = page->modify->obsolete_check_skip) != 0) {
+            /*
+             * The last check found a chain that can't shrink until the recorded durable timestamp
+             * is globally visible: skip the check without trying to move the oldest ID forward, it
+             * won't help. Once the skip budget runs out, check again regardless. The decrement can
+             * race, that only costs or saves a check.
+             */
+            page->modify->obsolete_check_skip = skip - 1;
+            if (skip > 1 && !__wt_txn_visible_all(session, txn, obsolete_timestamp))
+                return (0);
+        } else if (!__wt_txn_visible_all(session, txn, obsolete_timestamp)) {
             /* Try to move the oldest ID forward and re-check. */
             ret = __wt_txn_update_oldest(session, 0);
             /*
