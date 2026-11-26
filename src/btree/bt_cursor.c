@@ -234,11 +234,13 @@ __cursor_disagg_size_chk(WT_SESSION_IMPL *session, const WT_ITEM *key, const WT_
     size = kv_size + WT_DISAGG_ITEM_CELL_RESERVE;
     WT_RET(bm->write_size(bm, session, &size));
 
-    if (size > WT_BLOCK_DISAGG_MAX_WRITE_SIZE)
+    if (size > WT_BLOCK_DISAGG_MAX_WRITE_SIZE) {
+        WT_STAT_CONN_INCR(session, disagg_item_too_large);
         WT_RET_MSG(session, EINVAL,
           "key and value size of %" WT_SIZET_FMT
           " exceeds the maximum size of a disaggregated page of %d",
           kv_size, (int)WT_BLOCK_DISAGG_MAX_WRITE_SIZE);
+    }
     return (0);
 }
 

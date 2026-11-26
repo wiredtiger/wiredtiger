@@ -34,7 +34,7 @@ from wiredtiger import stat
 # single block larger than the page log can carry.
 @disagg_test_class
 class test_disagg_internal_page_size01(wttest.WiredTigerTestCase):
-    conn_config = 'disaggregated=(role="leader",lose_all_my_data=true),cache_size=2GB'
+    conn_config = 'disaggregated=(role="leader",lose_all_my_data=true),cache_size=2GB,statistics=(fast)'
     uri = 'table:large_internal_keys'
     table_config = 'key_format=S,value_format=S,block_manager=disagg,type=file,' \
         'internal_page_max=4KB,leaf_page_max=4KB'
@@ -95,6 +95,10 @@ class test_disagg_internal_page_size01(wttest.WiredTigerTestCase):
             with self.transaction(commit_timestamp=1):
                 cursor['key'] = 'value'
 
+    def get_stat(self, statistic):
+        with wttest.open_cursor(self.session, 'statistics:') as stat_cursor:
+            return stat_cursor[statistic][2]
+
     def test_oversized_item_rejected(self):
         self.session.create(self.uri, self.table_config)
         mb = 1024 * 1024
@@ -114,6 +118,9 @@ class test_disagg_internal_page_size01(wttest.WiredTigerTestCase):
                     self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                         lambda: cursor.update(), too_large)
 
+            # Each rejected write is counted: an insert and an update for each of the three items.
+            self.assertEqual(self.get_stat(stat.conn.disagg_item_too_large), 6)
+
             # The largest MongoDB document is accepted.
             with self.transaction(commit_timestamp=2):
                 cursor['max'] = 'x' * (16 * mb)
@@ -126,3 +133,4 @@ class test_disagg_internal_page_size01(wttest.WiredTigerTestCase):
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: cursor.modify([wiredtiger.Modify('y' * (14 * mb), 20 * mb, 0)]),
                     too_large)
+            self.assertEqual(self.get_stat(stat.conn.disagg_item_too_large), 7)

@@ -3519,6 +3519,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: time the most recently adopted checkpoint spent deferred, zero if adopted on delivery "
   "(msecs)",
   "disagg: unpublished schema operations canceled by a drop",
+  "disagg: writes rejected for exceeding the maximum disaggregated page size",
   "layered: Layered table cursor blind remove operations on a follower",
   "layered: Layered table cursor blind remove operations on a key already removed locally",
   "layered: Layered table cursor insert operations",
@@ -4699,6 +4700,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_DISAGG_INGEST_CREATE_ON_OPEN_TIME,
   WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT,
   WT_STAT_CONN_DISAGG_SCHEMA_CANCELED,
+  WT_STAT_CONN_DISAGG_ITEM_TOO_LARGE,
   WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_FOLLOWER,
   WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED,
   WT_STAT_CONN_LAYERED_CURS_INSERT,
@@ -5907,6 +5909,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->disagg_ingest_create_on_open_time = 0;
     /* not clearing disagg_checkpoint_defer_adopt_wait */
     stats->disagg_schema_canceled = 0;
+    stats->disagg_item_too_large = 0;
     stats->layered_curs_blind_remove_follower = 0;
     stats->layered_curs_blind_remove_ingest_deleted = 0;
     stats->layered_curs_insert = 0;
@@ -7283,6 +7286,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_checkpoint_defer_adopt_wait +=
       WT_STAT_CONN_READ(from, disagg_checkpoint_defer_adopt_wait);
     to->disagg_schema_canceled += WT_STAT_CONN_READ(from, disagg_schema_canceled);
+    to->disagg_item_too_large += WT_STAT_CONN_READ(from, disagg_item_too_large);
     to->layered_curs_blind_remove_follower +=
       WT_STAT_CONN_READ(from, layered_curs_blind_remove_follower);
     to->layered_curs_blind_remove_ingest_deleted +=

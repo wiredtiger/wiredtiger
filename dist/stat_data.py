@@ -649,6 +649,7 @@ conn_stats = [
     DisaggStat('disagg_ingest_create_on_open', 'ingest tables created on first open'),
     DisaggStat('disagg_ingest_create_on_open_time', 'time spent creating ingest tables on first open (usecs)'),
     DisaggStat('disagg_ingest_stable_tombstone_stripped', 'ingest-to-stable tombstone escape bytes stripped'),
+    DisaggStat('disagg_item_too_large', 'writes rejected for exceeding the maximum disaggregated page size'),
     DisaggStat('disagg_pick_up_checkpoint_time', 'pick up checkpoint most recent time (msecs)'),
     DisaggStat('disagg_pick_up_checkpoint_time_startup', 'pick up checkpoint time at startup (msecs)'),
     DisaggStat('disagg_pick_up_file_meta_inserted', 'new file metadata entries inserted during checkpoint pick-up'),
