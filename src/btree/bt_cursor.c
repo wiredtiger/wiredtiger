@@ -207,6 +207,42 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
 }
 
 /*
+ * The most a key and value cell can add to the item itself in a disaggregated page: a descriptor
+ * byte and a packed size for each cell, and a packed time window on the value.
+ */
+#define WT_DISAGG_ITEM_CELL_RESERVE   \
+    (2 * (1 + WT_INTPACK64_MAXSIZE) + \
+      (sizeof(WT_TIME_WINDOW) / sizeof(uint64_t)) * WT_INTPACK64_MAXSIZE)
+
+/*
+ * __cursor_disagg_size_chk --
+ *     Return if a key and value are too large to fit in a single disaggregated page.
+ */
+static WT_INLINE int
+__cursor_disagg_size_chk(WT_SESSION_IMPL *session, const WT_ITEM *key, const WT_ITEM *value)
+{
+    WT_BTREE *btree = S2BT(session);
+    WT_BM *bm = btree->bm;
+    size_t kv_size, size;
+
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        return (0);
+
+    kv_size = value->size + (btree->type == BTREE_ROW ? key->size : 0);
+
+    /* Add the room for the cells, then the page and block headers. */
+    size = kv_size + WT_DISAGG_ITEM_CELL_RESERVE;
+    WT_RET(bm->write_size(bm, session, &size));
+
+    if (size > WT_BLOCK_DISAGG_MAX_WRITE_SIZE)
+        WT_RET_MSG(session, EINVAL,
+          "key and value size of %" WT_SIZET_FMT
+          " exceeds the maximum size of a disaggregated page of %d",
+          kv_size, (int)WT_BLOCK_DISAGG_MAX_WRITE_SIZE);
+    return (0);
+}
+
+/*
  * __cursor_valid_insert --
  *     Check the insert list for a valid update.
  */
@@ -1182,6 +1218,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
+    WT_RET(__cursor_disagg_size_chk(session, &cursor->key, &cursor->value));
 
     /* It's no longer possible to bulk-load into the tree. */
     __wt_btree_disable_bulk(session);
@@ -1764,6 +1801,7 @@ retry:
     WT_ERR(__wt_modify_apply_item(session, cursor->value_format, &cursor->value, modify->data));
     new = cursor->value.size;
     WT_ERR(__cursor_size_chk(session, &cursor->value));
+    WT_ERR(__cursor_disagg_size_chk(session, &cursor->key, &cursor->value));
 
     WT_STAT_CONN_DSRC_INCRV(
       session, cursor_update_bytes_changed, new > orig ? new - orig : orig - new);
@@ -1853,6 +1891,7 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
+    WT_RET(__cursor_disagg_size_chk(session, &cursor->key, &cursor->value));
 
     return (__btcur_update(cbt, &cursor->value, WT_UPDATE_STANDARD));
 }

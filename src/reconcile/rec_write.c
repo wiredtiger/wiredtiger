@@ -1613,7 +1613,14 @@ __rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
     if (inuse < r->split_size / 2 && !__wti_rec_need_split(r, 0))
         goto done;
 
-    if (r->page->type == WT_PAGE_ROW_INT && r->entries < WT_PAGE_INTL_MINIMUM_ENTRIES)
+    /*
+     * A disaggregated page must fit in a single page log message, so the minimum entry count can't
+     * justify growing past the maximum write size. Split as long as there is more than one entry on
+     * the page.
+     */
+    if (r->page->type == WT_PAGE_ROW_INT && r->entries < WT_PAGE_INTL_MINIMUM_ENTRIES &&
+      (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || r->entries < 2 ||
+        inuse + next_len <= WT_BLOCK_DISAGG_MAX_WRITE_SIZE))
         goto done;
 
     /* All page boundaries reset the dictionary. */
@@ -2846,7 +2853,15 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
               !WT_PAGE_IS_INTERNAL(page) && !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT))
                 skip_write = true;
             else if (delta_enabled) {
-                if (block_meta->delta_count < conn->page_delta.max_consecutive_delta) {
+                /*
+                 * A page that grew past the maximum page size because of a large item is always
+                 * written in full, so a page together with its deltas stays within the page log
+                 * message size.
+                 */
+                if (chunk->image.size >
+                  (WT_PAGE_IS_INTERNAL(page) ? btree->maxintlpage : btree->maxleafpage))
+                    WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_size_threshold);
+                else if (block_meta->delta_count < conn->page_delta.max_consecutive_delta) {
                     WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
                     /*
                      * Discard the delta if it is larger than the configured percentage of the full
