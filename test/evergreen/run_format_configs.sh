@@ -55,8 +55,9 @@ wait_for_process()
                 wait $process
                 exit_status=$?
 
-                # Grep for the exact process id in the temp file.
-                config_name=`grep -E -w "${process}" $tmp_file | awk -F ":" '{print $2}' \
+                # Match the process id only in the first field of the temp file, so a config name
+                # containing the same digits can't produce a second match.
+                config_name=`grep -E "^${process}:" $tmp_file | awk -F ":" '{print $2}' \
                     | rev | awk -F "/" '{print $1}' | rev`
                 dir="WT_TEST_$config_name"
                 log="WT_TEST_$config_name.log"
