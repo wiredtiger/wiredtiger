@@ -1485,27 +1485,15 @@ config_disagg_storage(void)
                 config_single(NULL, "ops.throttle.sleep_us=1000", false);
 
             /*
-             * The async step-down drain doesn't account for truncate operations, so one could
-             * straddle the step-down timestamp and land on the wrong side of the checkpoint.
+             * Prepared and truncate operations aren't accounted for by the async step-down drain,
+             * so either could straddle step_down_ts and break the checkpoint's boundary guarantee.
              */
+            if (config_explicit(NULL, "ops.prepare"))
+                WARN("%s", "turning off ops.prepare to work with disagg.stepdown_async");
+            config_off(NULL, "ops.prepare");
             if (config_explicit(NULL, "ops.truncate"))
                 WARN("%s", "turning off ops.truncate to work with disagg.stepdown_async");
             config_off_all("ops.truncate");
-
-            /* Prepared straddler relocation supports only row-store tables. */
-            if (GV(OPS_PREPARE)) {
-                bool has_column_store = false;
-                for (u_int ti = 1; ti <= ntables; ++ti)
-                    if (tables[ti]->type != ROW)
-                        has_column_store = true;
-                if (has_column_store) {
-                    if (config_explicit(NULL, "ops.prepare"))
-                        WARN("%s",
-                          "turning off ops.prepare: disagg.stepdown_async only supports it with "
-                          "row-store tables");
-                    config_off(NULL, "ops.prepare");
-                }
-            }
 
             /*
              * The step-down checkpoint's duration counts against the same wall clock as the drain
