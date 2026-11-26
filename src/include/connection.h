@@ -218,7 +218,8 @@ struct __wt_disagg_metadata_op {
     uint64_t queued_time;    /* Clock reading when the operation was queued */
     uint64_t published_time; /* Clock reading when the operation was published */
 
-    TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
+    TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Time-ordered queue linkage. */
+    WT_DISAGG_METADATA_OP *down;            /* Next entry in the table-name hash bucket. */
 };
 
 /*
@@ -323,6 +324,9 @@ struct __wt_disagg_deferred_ckpt {
     char *meta;            /* Checkpoint metadata configuration */
     TAILQ_ENTRY(__wt_disagg_deferred_ckpt) q;
 };
+
+/* 16384 buckets keep the average chain near 15 entries for 250K active tables. */
+#define WT_DISAGG_QUEUE_HASH_BUCKETS 16384
 
 /*
  * WT_DISAGGREGATED_STORAGE --
@@ -452,9 +456,15 @@ struct __wt_disaggregated_storage {
      */
     wt_shared uint64_t database_size;
 
-    /* To copy at the next checkpoint. */
+    /*
+     * To copy at the next checkpoint. Every entry in this queue is in exactly one bucket chain of
+     * the table-name index below; both structures are mutated only under
+     * shared_metadata_queue_lock, which callers take inside schema_lock.
+     */
     TAILQ_HEAD(__wt_disagg_shared_metadata_qh, __wt_disagg_metadata_op) shared_metadata_qh;
     WT_SPINLOCK shared_metadata_queue_lock;
+    WT_DISAGG_METADATA_OP **shared_metadata_hash; /* Bucket heads, indexed by name */
+    uint32_t shared_metadata_hash_slots;          /* Bucket count */
 
     /* Shared metadata queue statistics. */
     wt_shared uint64_t schema_awaiting_publish;
