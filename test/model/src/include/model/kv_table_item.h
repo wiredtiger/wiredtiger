@@ -58,6 +58,13 @@ public:
     void add_update(std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist);
 
     /*
+     * kv_table_item::add_update_if_exists --
+     *     Add an update only if the key has a visible value; otherwise return false without
+     *     modifying the item. Transaction conflicts still throw. Used for blind removes.
+     */
+    bool add_update_if_exists(std::shared_ptr<kv_update> update);
+
+    /*
      * kv_table_item::contains_any --
      *     Check whether the table contains the given value. If there are multiple values associated
      *     with the given timestamp, return true if any of them match.
@@ -204,9 +211,11 @@ protected:
     /*
      * kv_table_item::add_update_nolock --
      *     Add an update but without taking a lock (this assumes the caller has it). Throw an
-     *     exception on error.
+     *     exception on error. Return false, without modifying the item, if the key has no visible
+     *     value and skip_if_missing is set.
      */
-    void add_update_nolock(std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist);
+    bool add_update_nolock(std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist,
+      bool skip_if_missing);
 
     /*
      * kv_table_item::fail_with_rollback --

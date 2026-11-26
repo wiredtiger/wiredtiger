@@ -271,7 +271,7 @@ protected:
     int
     do_operation(const operation::remove &op)
     {
-        return table(op.table_id)->remove(transaction(op.txn_id), op.key);
+        return table(op.table_id)->remove(transaction(op.txn_id), op.key, op.blind);
     }
 
     /*

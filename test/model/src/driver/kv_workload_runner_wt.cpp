@@ -65,10 +65,12 @@ kv_workload_runner_wt::session_context::~session_context()
 /*
  * session_context::cursor --
  *     Get a cursor. Create one if it does not already exist. Use the second argument to get and/or
- *     create additional cursors for the given table.
+ *     create additional cursors for the given table. The configuration is used only when the cursor
+ *     is first opened.
  */
 WT_CURSOR *
-kv_workload_runner_wt::session_context::cursor(table_id_t table_id, unsigned table_cur_id)
+kv_workload_runner_wt::session_context::cursor(
+  table_id_t table_id, unsigned table_cur_id, const char *config)
 {
     cursor_id_t id = cursor_id(table_id, table_cur_id);
     auto i = _cursors.find(id);
@@ -77,7 +79,7 @@ kv_workload_runner_wt::session_context::cursor(table_id_t table_id, unsigned tab
 
     WT_CURSOR *cursor;
     int ret = _session->open_cursor(
-      _session, _workload_context.table_uri(table_id), nullptr, nullptr, &cursor);
+      _session, _workload_context.table_uri(table_id), nullptr, config, &cursor);
     if (ret != 0)
         throw wiredtiger_exception("Failed to open a cursor", ret);
 
@@ -177,6 +179,13 @@ kv_workload_runner_wt::run(const kv_workload &workload)
                     _state->num_operations = p + 1;
                     _state->return_codes[p] = run_operation(op.operation);
                 }
+
+                /*
+                 * A follower never publishes a checkpoint, so its writes would not survive the
+                 * reopen performed by verification. Step up before the final close: closing a
+                 * leader publishes a final checkpoint.
+                 */
+                step_up_if_follower();
 
                 wiredtiger_close();
             } catch (std::exception &e) {
@@ -552,7 +561,10 @@ kv_workload_runner_wt::do_operation(const operation::remove &op)
 {
     std::shared_lock lock(_connection_lock);
     session_context_ptr session = txn_session(op.txn_id);
-    WT_CURSOR *cursor = session->cursor(op.table_id);
+    WT_CURSOR *cursor = op.blind ?
+      session->cursor(
+        op.table_id, session_context::k_blind_remove_table_cur_id, "blind_remove=true") :
+      session->cursor(op.table_id);
     return wt_cursor_remove(cursor, op.key);
 }
 
@@ -655,7 +667,8 @@ kv_workload_runner_wt::do_operation(const operation::truncate &op)
     std::shared_lock lock(_connection_lock);
     session_context_ptr session = txn_session(op.txn_id);
     WT_CURSOR *cursor1 = session->cursor(op.table_id);
-    WT_CURSOR *cursor2 = session->cursor(op.table_id, 1); /* Open another cursor for the table. */
+    WT_CURSOR *cursor2 = session->cursor(
+      op.table_id, session_context::k_truncate_table_cur_id); /* Another cursor for the table. */
     return wt_cursor_truncate(
       session->session(), table_uri(op.table_id), cursor1, cursor2, op.start, op.stop);
 }
@@ -735,8 +748,13 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
         model::timestamp_t checkpoint_timestamp;
         bool picked_up = wt_disagg_pick_up_latest_checkpoint(_connection, checkpoint_timestamp);
 
-        /* Step up. */
-        if (database_config.leader) {
+        /*
+         * Step up. With leader_first_open, only the first open is a leader. Closing it publishes a
+         * checkpoint, so the follower opens that come after it have stable content to pick up.
+         */
+        bool leader =
+          database_config.leader || (database_config.leader_first_open && _state->num_opens == 0);
+        if (leader) {
             ret = _connection->reconfigure(_connection, "disaggregated=(role=leader)");
             if (ret != 0)
                 throw wiredtiger_exception("Cannot reconfigure WiredTiger", ret);
@@ -764,6 +782,35 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
                 throw wiredtiger_exception("Cannot set the stable timestamp", ret);
         }
     }
+
+    _state->num_opens++;
+}
+
+/*
+ * kv_workload_runner_wt::step_up_if_follower --
+ *     If the database is a disaggregated follower, step it up to leader.
+ */
+void
+kv_workload_runner_wt::step_up_if_follower()
+{
+    std::unique_lock lock(_connection_lock);
+    if (_connection == nullptr)
+        return;
+
+    kv_database_config database_config = kv_database_config::from_string(_state->database_config);
+    if (!database_config.disaggregated)
+        return;
+
+    /*
+     * The connection is already a leader if the configuration says so, or if this is still the
+     * first open under leader_first_open.
+     */
+    if (database_config.leader || (database_config.leader_first_open && _state->num_opens == 1))
+        return;
+
+    int ret = _connection->reconfigure(_connection, "disaggregated=(role=leader)");
+    if (ret != 0)
+        throw wiredtiger_exception("Cannot reconfigure WiredTiger", ret);
 }
 
 /*

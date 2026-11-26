@@ -238,18 +238,23 @@ kv_table::remove(const data_value &key, timestamp_t timestamp)
 
 /*
  * kv_table::remove --
- *     Delete a value from the table.
+ *     Delete a value from the table. A blind remove succeeds without writing anything when the key
+ *     has no visible value; transaction conflicts still fail with WT_ROLLBACK.
  */
 int
-kv_table::remove(kv_transaction_ptr txn, const data_value &key)
+kv_table::remove(kv_transaction_ptr txn, const data_value &key, bool blind)
 {
     kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
-        return WT_NOTFOUND;
+        return blind ? 0 : WT_NOTFOUND;
 
     std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(NONE, txn));
     try {
-        item->add_update(update, true, false);
+        if (blind) {
+            if (!item->add_update_if_exists(update))
+                return 0;
+        } else
+            item->add_update(update, true, false);
         txn->add_update(*this, key, std::move(update));
         return 0;
     } catch (wiredtiger_exception &e) {

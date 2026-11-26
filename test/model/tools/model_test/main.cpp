@@ -279,6 +279,8 @@ update_spec(model::kv_workload_generator_spec &spec, std::string &conn_config,
         UPDATE_SPEC_START;
 
         UPDATE_SPEC(disaggregated, float);
+        UPDATE_SPEC(follower, float);
+        UPDATE_SPEC(follower_seed, float);
 
         UPDATE_SPEC(min_tables, uint64);
         UPDATE_SPEC(max_tables, uint64);
@@ -297,6 +299,8 @@ update_spec(model::kv_workload_generator_spec &spec, std::string &conn_config,
         UPDATE_SPEC(get, float);
         UPDATE_SPEC(insert, float);
         UPDATE_SPEC(remove, float);
+        UPDATE_SPEC(blind_remove, float);
+        UPDATE_SPEC(blind_remove_absent, float);
         UPDATE_SPEC(set_commit_timestamp, float);
         UPDATE_SPEC(truncate, float);
 

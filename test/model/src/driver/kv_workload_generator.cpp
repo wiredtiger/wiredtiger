@@ -64,6 +64,8 @@ kv_workload_generator_spec::kv_workload_generator_spec()
 {
     /* Disagg may be enabled by adding -G disaggregated=1 as a command line argument. */
     disaggregated = 0;
+    follower = 0.25;
+    follower_seed = 0.5;
 
     min_tables = 3;
     max_tables = 10;
@@ -83,6 +85,9 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     remove = 0.15;
     set_commit_timestamp = 0.05;
     truncate = 0.005;
+
+    blind_remove = 0.5;
+    blind_remove_absent = 0.25;
 
     checkpoint = 0.02;
     checkpoint_crash = 0.002;
@@ -477,9 +482,20 @@ kv_workload_generator::generate_transaction(size_t seq_no)
             probability_case(_spec.remove)
             {
                 table_context_ptr table = choose_table(txn_ptr);
-                data_value key = generate_key(table, op_category::remove);
+
+                /* Blind removes are supported only on layered tables, i.e., followers here. */
+                bool blind = !_database_config.leader && _random.next_float() < _spec.blind_remove;
+
+                /*
+                 * Removing a key that never existed is the failure class that broke the first blind
+                 * remove implementation, so generate such keys by construction rather than relying
+                 * on a random key missing the used-key set.
+                 */
+                data_value key = blind && _random.next_float() < _spec.blind_remove_absent ?
+                  generate_absent_key(table) :
+                  generate_key(table, op_category::remove);
                 table->remove_key(key);
-                txn << operation::remove(table->id(), txn_id, key);
+                txn << operation::remove(table->id(), txn_id, key, blind);
             }
             probability_case(_spec.set_commit_timestamp)
             {
@@ -504,82 +520,15 @@ kv_workload_generator::generate_transaction(size_t seq_no)
 }
 
 /*
- * kv_workload_generator::run --
- *     Generate the workload.
+ * kv_workload_generator::generate_sequences --
+ *     Generate the given number of operation sequences, updating the checkpoint and stable
+ *     timestamp bookkeeping shared with the caller.
  */
 void
-kv_workload_generator::run()
+kv_workload_generator::generate_sequences(
+  uint64_t count, bool &has_checkpoint, bool &has_stable_timestamp)
 {
-    /*
-     * Top-level configuration. The model applies one database configuration wholesale, so collect
-     * the keys and emit them together.
-     */
-    std::string database_config;
-    if (_random.next_float() < _spec.disaggregated) {
-        _database_config.disaggregated = true;
-        database_config = join(database_config, "disaggregated=true");
-
-        /* Adjust the specs based on what's not supported. */
-        _spec.column_var = 0;
-        _spec.rollback_to_stable = 0;
-
-        /*
-         * A layered table is created with logging disabled whatever the connection is configured
-         * with, so connection logging says nothing about the workload's data. That also settles the
-         * phase-named crash: the checkpoint is published to the page log after the point where
-         * those crashes are taken, so there is no phase here that keeps it.
-         */
-        _spec.conn_logging = 0;
-        _spec.checkpoint_crash_trigger = 0;
-
-        /* FIXME-WT-15040 Prepared transactions are not yet supported. */
-        _spec.prepared_transaction = 0;
-    }
-    if (_random.next_float() < _spec.conn_logging) {
-        _database_config.logging = true;
-        database_config = join(database_config, "logging=true");
-    }
-    if (!database_config.empty())
-        _workload << operation::config("database", database_config);
-
-    /* Create tables. */
-    uint64_t num_tables = _random.next_uint64(_spec.min_tables, _spec.max_tables);
-    for (uint64_t i = 0; i < num_tables; i++)
-        create_table();
-
-    /*
-     * Start by generating a serialized workload. The workload contains operation sequences in
-     * order, with no overlap between different transactions and between transactions and special
-     * operations such as "checkpoint" or "set stable timestamp."
-     *
-     * Generating one transaction at a time is more straightforward than trying to generate a
-     * concurrent workload directly. Working on one transaction at a time, makes it, for example,
-     * easier to reason about aspects such as operation probabilities, transaction length, and
-     * causal ordering. It will also make it easier to implement a concurrent workload execution in
-     * the future, which would allow us to achieve better test coverage.
-     *
-     * We will add concurrency to the workload later, respecting dependencies between transactions,
-     * so that a concurrent schedule would have the same semantics as the serial-equivalent
-     * schedule.
-     *
-     * At this point, we will generate just the operations without timestamps; we will add
-     * timestamps later after we figure out all the dependencies between transactions. This would
-     * allow us to produce more interesting schedules.
-     *
-     * And why do we go through all this trouble? Most existing workload generators play tricks such
-     * as partitioning key spaces and timestamps between threads, which puts constraints on the
-     * kinds of database states that can be generated. We would like to generate states and tree
-     * shapes that cannot be generated by existing workload generators, so that we can explore as
-     * many interesting corner cases as possible.
-     *
-     * For disaggregated storage, we need to ensure that the stable timestamp is set before the
-     * first checkpoint (as this is required by precise checkpoints), and that the checkpoint is
-     * taken before the first crash (as this is required for the tables to exist after crash).
-     */
-    uint64_t num_sequences = _random.next_uint64(_spec.min_sequences, _spec.max_sequences);
-    bool has_checkpoint = false;
-    bool has_stable_timestamp = false;
-    for (uint64_t i = 0; i < num_sequences; i++)
+    for (uint64_t i = 0; i < count; i++)
         probability_switch(_random.next_float())
         {
             probability_case(_spec.checkpoint)
@@ -682,6 +631,151 @@ kv_workload_generator::run()
                 _sequences.push_back(generate_transaction(_sequences.size()));
             }
         }
+}
+
+/*
+ * kv_workload_generator::run --
+ *     Generate the workload.
+ */
+void
+kv_workload_generator::run()
+{
+    /*
+     * Top-level configuration. The model applies one database configuration wholesale, so collect
+     * the keys and emit them together.
+     */
+    std::string database_config;
+    if (_random.next_float() < _spec.disaggregated) {
+        _database_config.disaggregated = true;
+        database_config = join(database_config, "disaggregated=true");
+
+        /* Adjust the specs based on what's not supported. */
+        _spec.column_var = 0;
+        _spec.rollback_to_stable = 0;
+
+        /*
+         * A layered table is created with logging disabled whatever the connection is configured
+         * with, so connection logging says nothing about the workload's data. That also settles the
+         * phase-named crash: the checkpoint is published to the page log after the point where
+         * those crashes are taken, so there is no phase here that keeps it.
+         */
+        _spec.conn_logging = 0;
+        _spec.checkpoint_crash_trigger = 0;
+
+        /* FIXME-WT-15040 Prepared transactions are not yet supported. */
+        _spec.prepared_transaction = 0;
+
+        /*
+         * A follower cannot checkpoint, and without leader checkpoints a crash or restart would
+         * lose every write in the workload, so run followers with transactional operations only.
+         * The runner makes the data durable for verification by stepping up before the final close.
+         */
+        if (_random.next_float() < _spec.follower) {
+            _database_config.leader = false;
+            database_config = join(database_config, "leader=false");
+
+            /*
+             * Sometimes run the first open as a leader, so the follower phase works against stable
+             * content picked up from the leader's shutdown checkpoint; otherwise the whole run is a
+             * follower that starts cold, with nothing in stable.
+             */
+            if (_random.next_float() < _spec.follower_seed) {
+                _database_config.leader_first_open = true;
+                database_config = join(database_config, "leader_first_open=true");
+            }
+
+            _spec.checkpoint = 0;
+            _spec.checkpoint_crash = 0;
+            _spec.crash = 0;
+            _spec.restart = 0;
+
+            /* FIXME-WT-19240 A follower truncate can lose a later insert across step-up. */
+            _spec.truncate = 0;
+        }
+    }
+    if (_random.next_float() < _spec.conn_logging) {
+        _database_config.logging = true;
+        database_config = join(database_config, "logging=true");
+    }
+    if (!database_config.empty())
+        _workload << operation::config("database", database_config);
+
+    /* Create tables. */
+    uint64_t num_tables = _random.next_uint64(_spec.min_tables, _spec.max_tables);
+    for (uint64_t i = 0; i < num_tables; i++)
+        create_table();
+
+    /*
+     * Start by generating a serialized workload. The workload contains operation sequences in
+     * order, with no overlap between different transactions and between transactions and special
+     * operations such as "checkpoint" or "set stable timestamp."
+     *
+     * Generating one transaction at a time is more straightforward than trying to generate a
+     * concurrent workload directly. Working on one transaction at a time, makes it, for example,
+     * easier to reason about aspects such as operation probabilities, transaction length, and
+     * causal ordering. It will also make it easier to implement a concurrent workload execution in
+     * the future, which would allow us to achieve better test coverage.
+     *
+     * We will add concurrency to the workload later, respecting dependencies between transactions,
+     * so that a concurrent schedule would have the same semantics as the serial-equivalent
+     * schedule.
+     *
+     * At this point, we will generate just the operations without timestamps; we will add
+     * timestamps later after we figure out all the dependencies between transactions. This would
+     * allow us to produce more interesting schedules.
+     *
+     * And why do we go through all this trouble? Most existing workload generators play tricks such
+     * as partitioning key spaces and timestamps between threads, which puts constraints on the
+     * kinds of database states that can be generated. We would like to generate states and tree
+     * shapes that cannot be generated by existing workload generators, so that we can explore as
+     * many interesting corner cases as possible.
+     *
+     * For disaggregated storage, we need to ensure that the stable timestamp is set before the
+     * first checkpoint (as this is required by precise checkpoints), and that the checkpoint is
+     * taken before the first crash (as this is required for the tables to exist after crash).
+     */
+    uint64_t num_sequences = _random.next_uint64(_spec.min_sequences, _spec.max_sequences);
+    bool has_checkpoint = false;
+    bool has_stable_timestamp = false;
+
+    /*
+     * In seeded-follower mode, generate a leader phase first: regular transactions and checkpoints,
+     * but no blind removes, which the leader does not support. The phase ends with a restart, whose
+     * close publishes a checkpoint that the follower phase picks up into its stable constituents.
+     */
+    size_t boundary_restart = 0;
+    bool seeded = _database_config.leader_first_open;
+    if (seeded) {
+        kv_workload_generator_spec follower_spec = _spec;
+        _spec.blind_remove = 0;
+        _spec.checkpoint = kv_workload_generator_spec().checkpoint;
+
+        uint64_t phase1_sequences =
+          std::max<uint64_t>(1, _random.next_uint64(num_sequences / 4, num_sequences / 2));
+        generate_sequences(phase1_sequences, has_checkpoint, has_stable_timestamp);
+        num_sequences -= std::min(num_sequences, phase1_sequences);
+
+        /* The leader's shutdown checkpoint requires a stable timestamp. */
+        if (!has_stable_timestamp) {
+            kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+              _sequences.size(), kv_workload_sequence_type::set_stable_timestamp);
+            *p << operation::set_stable_timestamp(k_timestamp_none); /* Placeholder. */
+            _sequences.push_back(std::move(p));
+            has_stable_timestamp = true;
+        }
+
+        /* Close the leader and reopen as a follower. */
+        kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+          _sequences.size(), kv_workload_sequence_type::restart);
+        *p << operation::restart();
+        boundary_restart = _sequences.size();
+        _sequences.push_back(std::move(p));
+        has_checkpoint = true; /* Shutdown takes a checkpoint. */
+
+        _spec = follower_spec;
+    }
+
+    generate_sequences(num_sequences, has_checkpoint, has_stable_timestamp);
 
     /* Ensure that the stable timestamp is set for disaggregated storage. */
     if (_database_config.disaggregated && !has_stable_timestamp) {
@@ -707,6 +801,19 @@ kv_workload_generator::run()
             _sequences[i]->must_finish_before(_sequences[next_nontransaction]);
         if (_sequences[i]->type() != kv_workload_sequence_type::transaction)
             next_nontransaction = i;
+    }
+
+    /*
+     * The phase-boundary restart in seeded-follower mode separates the leader phase from the
+     * follower phase, so it must be a full barrier: nothing from either phase may be scheduled on
+     * the wrong side of it.
+     */
+    if (seeded) {
+        /* Add the outgoing edges first, so that the preceding sequences inherit them. */
+        for (size_t j = boundary_restart + 1; j < _sequences.size(); j++)
+            _sequences[boundary_restart]->must_finish_before(_sequences[j]);
+        for (size_t j = 0; j < boundary_restart; j++)
+            _sequences[j]->must_finish_before(_sequences[boundary_restart]);
     }
 
     /*
@@ -888,6 +995,43 @@ kv_workload_generator::generate_key(table_context_ptr table, op_category op)
         return table->choose_existing_key(_random);
 
     /* Otherwise generate a random key. It's okay if the key already exists. */
+    return random_data_value(table->key_format());
+}
+
+/*
+ * kv_workload_generator::generate_absent_key --
+ *     Generate a key that is guaranteed to have never been inserted into the table, by drawing from
+ *     above the key range the generator uses for inserts. Fall back to a random key for key formats
+ *     with a domain too small to have an unused range.
+ */
+data_value
+kv_workload_generator::generate_absent_key(table_context_ptr table)
+{
+    /*
+     * Keys the generator inserts are drawn from [0, max] ([1, max] for record numbers), and the
+     * random draw is inclusive of both bounds, so the absent range must start one past the maximum.
+     * Guard against the configured maximum wrapping the range computation: if there is no room
+     * above the insert range, fall back to a random key.
+     */
+    const char *f = table->key_format().c_str();
+    switch (f[0]) {
+    case 'Q': {
+        uint64_t lo = _spec.max_value_uint64 + 1;
+        if (lo == 0)
+            break;
+        uint64_t hi = lo + std::min(_spec.max_value_uint64, UINT64_MAX - lo);
+        return data_value(_random.next_uint64(lo, hi));
+    }
+    case 'r': {
+        uint64_t lo = _spec.max_recno + 1;
+        if (lo == 0)
+            break;
+        uint64_t hi = lo + std::min(_spec.max_recno, UINT64_MAX - lo);
+        return data_value(_random.next_uint64(lo, hi));
+    }
+    default:
+        break;
+    };
     return random_data_value(table->key_format());
 }
 

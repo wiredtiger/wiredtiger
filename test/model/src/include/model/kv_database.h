@@ -51,6 +51,13 @@ struct kv_database_config {
     bool leader;
 
     /*
+     * Whether the first open is a leader regardless of the leader setting. Closing it publishes a
+     * checkpoint, so the follower opens that come after it have stable content to pick up. Without
+     * this, a follower-only run never has anything in its stable constituents.
+     */
+    bool leader_first_open;
+
+    /*
      * Whether the connection runs with logging. It belongs here because it decides whether a
      * checkpoint whose transaction already committed survives a crash.
      */

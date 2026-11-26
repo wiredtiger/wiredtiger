@@ -258,9 +258,10 @@ public:
 
     /*
      * kv_table::remove --
-     *     Delete a value from the table.
+     *     Delete a value from the table. A blind remove succeeds without writing anything when the
+     *     key has no visible value.
      */
-    int remove(kv_transaction_ptr txn, const data_value &key);
+    int remove(kv_transaction_ptr txn, const data_value &key, bool blind = false);
 
     /*
      * kv_table::truncate --
