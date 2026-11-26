@@ -44,16 +44,15 @@
 #define MAX_TABLE_TYPE 2
 typedef enum { MIX = 0, ROW, COL } table_type; /* File type */
 
-/* The number of timestamp slots in a worker's prepare window. */
-#define PREPARE_TIMESTAMP_WINDOW 10
-
 /*
- * Each worker iteration in predictable replay gets a disjoint timestamp range. The first timestamp
- * starts the window for sampling prepare, commit, durable and rollback timestamps.
+ * For a predictable run we reserve timestamps for each thread for the entire run. The timestamp for
+ * the i-th key that a thread writes is given by the macro below. In a given iteration for each
+ * thread, there are three timestamps available. We never use the second and only sometimes use the
+ * third. The first is used as the commit and optionally as the prepared timestamp. The third as the
+ * durable timestamp ahead of the commit timestamp.
  */
-#define TIMESTAMPS_PER_ITERATION (g.prepare ? PREPARE_TIMESTAMP_WINDOW + 2 : 3)
 #define RESERVED_TIMESTAMPS_FOR_ITERATION(threadcount, td, iter) \
-    (((iter) * (uint64_t)(threadcount) + (uint64_t)((td)->info)) * TIMESTAMPS_PER_ITERATION + 1)
+    (((iter) * (uint64_t)(threadcount) + (uint64_t)((td)->info)) * 3 + 1)
 
 #define PRED_REPLAY_STABLE_PERIOD 100
 
