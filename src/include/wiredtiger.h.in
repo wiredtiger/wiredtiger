@@ -8169,7 +8169,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DISAGG_STEP_UP_CLEAR_INGEST_RETRY	1644
 /*! disagg: step up ingest table drain bytes moved to stable tables */
 #define	WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_BYTES	1645
-/*! disagg: step up ingest table drain keys with orphan removes skipped */
+/*!
+ * disagg: step up ingest table drain keys with orphan removes skipped,
+ * OTel type: otel_counter
+ */
 #define	WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_ORPHAN_REMOVE	1646
 /*! disagg: step up ingest table drain most recent time (msecs) */
 #define	WT_STAT_CONN_DISAGG_STEP_UP_INGEST_DRAIN_TIME	1647
@@ -8202,11 +8205,14 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER_ADOPT_WAIT	1656
 /*! disagg: unpublished schema operations canceled by a drop */
 #define	WT_STAT_CONN_DISAGG_SCHEMA_CANCELED		1657
-/*! layered: Layered table cursor blind remove operations on a follower */
+/*!
+ * layered: Layered table cursor blind remove operations on a follower,
+ * OTel type: otel_counter
+ */
 #define	WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_FOLLOWER	1658
 /*!
  * layered: Layered table cursor blind remove operations on a key already
- * removed locally
+ * removed locally, OTel type: otel_counter
  */
 #define	WT_STAT_CONN_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED	1659
 /*! layered: Layered table cursor insert operations */
@@ -10546,11 +10552,14 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES		2330
 /*! cursor: update value size change */
 #define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED	2331
-/*! layered: Layered table cursor blind remove operations on a follower */
+/*!
+ * layered: Layered table cursor blind remove operations on a follower,
+ * OTel type: otel_counter
+ */
 #define	WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_FOLLOWER	2332
 /*!
  * layered: Layered table cursor blind remove operations on a key already
- * removed locally
+ * removed locally, OTel type: otel_counter
  */
 #define	WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED	2333
 /*! layered: Layered table cursor insert operations */
