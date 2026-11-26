@@ -186,7 +186,20 @@ class test_cc12(checkpoint_cleanup_resolved_base):
     """
 
     disagg_storages = gen_disagg_storages()
-    scenarios = make_scenarios(disagg_storages)
+    eviction_scenarios = [
+        ('default_eviction', dict(eviction_race=False)),
+        # Keep the eviction server threads running so urgent evictions of internal pages
+        # complete before the cursor walk that follows the setup checkpoint, which is the
+        # race that made this test fail under load.
+        ('eviction_race', dict(eviction_race=True)),
+    ]
+    scenarios = make_scenarios(disagg_storages, eviction_scenarios)
+
+    def conn_config(self):
+        config = super().conn_config()
+        if self.eviction_race:
+            config += 'eviction=(threads_min=4,threads_max=8),'
+        return config
 
     def test_resolved_deleted_refs_not_reprocessed(self):
         self.check_resolved_refs_not_reprocessed()
