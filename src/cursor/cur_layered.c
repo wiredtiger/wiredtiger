@@ -2369,6 +2369,7 @@ __clayered_next_raw_kv_batch(
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
     WT_STAT_CONN_DSRC_INCR(session, cursor_next_raw_kv_batch);
+    WT_STAT_CONN_DSRC_INCRV(session, cursor_next_raw_kv_batch_requested, count);
 
     *returned_countp = 0;
 

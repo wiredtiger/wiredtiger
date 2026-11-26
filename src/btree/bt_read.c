@@ -633,10 +633,14 @@ read:
              * soon as possible. We don't do that set here because we don't want to evict the page
              * before we "acquire" it. Also avoid queuing a pre-fetch page for forced eviction
              * before it has a chance of being used. Otherwise the work we've just done is wasted.
+             *
+             * Don't apply the cache-wide no-keep mode to internal pages: their children are usually
+             * in memory, so the forced eviction fails and only wastes eviction work.
              */
             wont_need = LF_ISSET(WT_READ_WONT_NEED) ||
               F_ISSET(session, WT_SESSION_READ_WONT_NEED) ||
-              (!LF_ISSET(WT_READ_PREFETCH) && F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_NOKEEP));
+              (!LF_ISSET(WT_READ_PREFETCH) && !F_ISSET(ref, WT_REF_FLAG_INTERNAL) &&
+                F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_NOKEEP));
             continue;
         case WT_REF_LOCKED:
             if (LF_ISSET(WT_READ_NO_WAIT))

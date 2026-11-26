@@ -108,12 +108,13 @@ class test_layered_tombstone_prepared_discover(wttest.WiredTigerTestCase):
         ckpt_session = self.conn.open_session()
         ckpt_session.checkpoint()
         ckpt_session.close()
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
 
         # Phase 2 (follower): pick up the checkpoint. Prepared discovery walks the stable image and
         # restores the prepared update into the ingest table.
         self.reopen_conn(config=self.conn_base_config +
-            self.role_config('follower').rstrip(')') + f',checkpoint_meta="{checkpoint_meta}")')
+            self.role_config('follower').rstrip(')') +
+            f',checkpoint_meta="{checkpoint_meta}",checkpoint_lsn={checkpoint_lsn})')
 
         # Phase 3 (resolve): discover, claim and commit the prepared transaction.
         discover_cursor = self.session.open_cursor('prepared_discover:')

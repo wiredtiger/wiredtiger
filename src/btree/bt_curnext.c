@@ -934,6 +934,47 @@ err:
 }
 
 /*
+ * __cursor_batch_keys_alloc --
+ *     Ensure a buffer is available for each key in a batched read.
+ */
+static int
+__cursor_batch_keys_alloc(WT_CURSOR_BTREE *cbt, size_t count)
+{
+    size_t required = count * sizeof(WT_ITEM);
+    if (required <= cbt->batch_keys_allocated)
+        return (0);
+
+    WT_STAT_CONN_DSRC_INCR(CUR2S(cbt), cursor_next_raw_kv_batch_allocations);
+    return (__wt_realloc(CUR2S(cbt), &cbt->batch_keys_allocated, required, &cbt->batch_keys));
+}
+
+/*
+ * __cursor_batch_key_set --
+ *     Arrange for a key's WT_ITEM to point to data that will outlive the cursor API call.
+ */
+static int
+__cursor_batch_key_set(WT_CURSOR_BTREE *cbt, WT_ITEM *key, size_t slot, size_t count)
+{
+    WT_CURSOR *cursor = &cbt->iface;
+    WT_SESSION_IMPL *session = CUR2S(cbt);
+
+    /*
+     * A key built while walking the page lives in the cursor's temporary key buffer. The next
+     * movement would overwrite this, so take a copy.
+     */
+    if (cursor->key.data == cbt->row_key->data && WT_DATA_IN_ITEM(cbt->row_key)) {
+        WT_RET(__cursor_batch_keys_alloc(cbt, count));
+        WT_ASSERT(session, slot < cbt->batch_keys_allocated / sizeof(WT_ITEM));
+        WT_RET(__wt_buf_set(session, &cbt->batch_keys[slot], cursor->key.data, cursor->key.size));
+        WT_STAT_CONN_DSRC_INCR(session, cursor_next_raw_kv_batch_allocations);
+        WT_ITEM_SET(*key, cbt->batch_keys[slot]);
+    } else
+        WT_ITEM_SET(*key, cursor->key);
+
+    return (0);
+}
+
+/*
  * __wt_btcur_next_batch --
  *     Read up to count keys and values, moving the cursor forward accordingly.
  */
@@ -945,6 +986,7 @@ __wt_btcur_next_batch(
     WT_DECL_RET;
     WT_SESSION_IMPL *session = CUR2S(cbt);
     WT_STAT_CONN_DSRC_INCR(session, cursor_next_raw_kv_batch);
+    WT_STAT_CONN_DSRC_INCRV(session, cursor_next_raw_kv_batch_requested, count);
     *returned_countp = 0;
 
     if (count == 0 || (keys == NULL && values == NULL))
@@ -952,11 +994,17 @@ __wt_btcur_next_batch(
     if (CUR2BT(cbt)->type != BTREE_ROW)
         WT_RET(ENOTSUP);
 
+    count = WT_MIN(count, WT_CURSOR_BATCH_MAX);
+
     /* Reuse all of the cursor setup logic provided here. */
     WT_RET(__wt_btcur_next(cbt, false));
 
-    if (keys != NULL)
-        WT_ITEM_SET(keys[0], cursor->key);
+    if (keys != NULL) {
+        if ((ret = __cursor_batch_key_set(cbt, &keys[0], 0, count)) != 0) {
+            WT_TRET(__cursor_reset(cbt));
+            WT_RET(ret);
+        }
+    }
     if (values != NULL)
         WT_ITEM_SET(values[0], cursor->value);
 
@@ -982,7 +1030,8 @@ __wt_btcur_next_batch(
 #endif
 
         if (keys != NULL)
-            WT_ITEM_SET(keys[i], cursor->key);
+            if ((ret = __cursor_batch_key_set(cbt, &keys[i], i, count)) != 0)
+                break;
         if (values != NULL)
             WT_ITEM_SET(values[i], cursor->value);
         ++i;

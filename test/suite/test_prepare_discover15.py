@@ -51,12 +51,13 @@ class test_prepare_discover15(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def _open_follower(self, checkpoint_meta):
+    def _open_follower(self, checkpoint_meta, checkpoint_lsn):
         conn = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
-        conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}",'
+            f'checkpoint_lsn={checkpoint_lsn})')
         return conn
 
     def _checkpoint(self, conn):
@@ -112,7 +113,7 @@ class test_prepare_discover15(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
         self._checkpoint(self.conn)
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
 
         self.session.rollback_transaction(
             'rollback_timestamp=' + self.timestamp_str(210))
@@ -124,7 +125,7 @@ class test_prepare_discover15(wttest.WiredTigerTestCase):
         # Follower: discover the prepared transaction, claim it, and roll
         # the claim back. The leader's prepared id should be surfaced
         # exactly once.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, checkpoint_meta_lsn)
 
         discover_session = conn_follow.open_session()
         discover_cursor = discover_session.open_cursor('prepared_discover:')

@@ -40,11 +40,11 @@ class test_layered_checkpoint12(wttest.WiredTigerTestCase):
     def conn_config(self):
         return f'verbose=[verify:3],disaggregated=(role="leader")'
 
-    def _follower_config(self, checkpoint_meta=None):
+    def _follower_config(self, checkpoint_meta=None, checkpoint_lsn=None):
         config = f'verbose=[verify:3],verify_metadata=true,' \
             f'disaggregated=(role="follower"'
         if checkpoint_meta is not None:
-            config += f',checkpoint_meta="{checkpoint_meta}"'
+            config += f',checkpoint_meta="{checkpoint_meta}",checkpoint_lsn={checkpoint_lsn}'
         config += ')'
         return config
 
@@ -60,7 +60,7 @@ class test_layered_checkpoint12(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(1))
         self.session.checkpoint()
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install()
 
         # Reopen as a follower without checkpoint metadata first. The startup
         # verify path should skip the database-size check until pickup occurs.
@@ -77,7 +77,7 @@ class test_layered_checkpoint12(wttest.WiredTigerTestCase):
         # checkpoint and runs the database-size verification branch.
         with self.expectedStdoutPattern(
             r'disagg database size: .*checkpoint size', maxchars=30000):
-            self.reopen_conn(config=self._follower_config(checkpoint_meta))
+            self.reopen_conn(config=self._follower_config(checkpoint_meta, checkpoint_lsn))
 
         # test_layered*.py modules run layered verify during teardown. Ignore the
         # resulting verify verbosity so teardown only checks this test's output.

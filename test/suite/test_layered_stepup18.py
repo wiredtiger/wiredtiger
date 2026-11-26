@@ -147,7 +147,7 @@ class test_layered_stepup18(wttest.WiredTigerTestCase):
         conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(250))
         self.checkpoint(conn_follow)
         self.check_reads(conn_follow)
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta(conn_follow)
+        (checkpoint_meta, checkpoint_lsn) = self.disagg_get_checkpoint_install(conn_follow)
         session_follow.close()
         conn_follow.close('debug=(skip_checkpoint=true)')
 
@@ -155,7 +155,8 @@ class test_layered_stepup18(wttest.WiredTigerTestCase):
         os.mkdir('follower2')
         os.symlink('../kv_home', 'follower2/kv_home', target_is_directory=True)
         conn_new = self.open_follower('follower2')
-        conn_new.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        conn_new.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}",'
+            f'checkpoint_lsn={checkpoint_lsn})')
         session_new = conn_new.open_session()
         discover = session_new.open_cursor('prepared_discover:')
         self.assertEqual(discover.next(), wiredtiger.WT_NOTFOUND)

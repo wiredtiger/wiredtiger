@@ -481,3 +481,11 @@ define_c_test(
     ARGUMENTS -b ${CMAKE_BINARY_DIR} -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt19101_readonly_lock_open>/WT_HOME>
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_wt19120_backup_newfile_race
+    SOURCES wt19120_backup_newfile_race/main.c
+    DIR_NAME wt19120_backup_newfile_race
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)

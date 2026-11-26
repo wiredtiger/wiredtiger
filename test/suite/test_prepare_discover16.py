@@ -54,12 +54,13 @@ class test_prepare_discover16(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def _open_follower(self, checkpoint_meta):
+    def _open_follower(self, checkpoint_meta, checkpoint_lsn):
         conn = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
-        conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}",'
+            f'checkpoint_lsn={checkpoint_lsn})')
         return conn
 
     def _checkpoint(self, conn):
@@ -112,7 +113,8 @@ class test_prepare_discover16(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
         self._checkpoint(self.conn)
-        prepared_checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (prepared_checkpoint_meta, prepared_checkpoint_meta_lsn) = \
+            self.disagg_get_checkpoint_install()
         cursor.close()
         # Close the leader without an additional checkpoint, so the
         # follower observes exactly the checkpoint with the prepared
@@ -121,7 +123,7 @@ class test_prepare_discover16(wttest.WiredTigerTestCase):
 
         # On the follower, discover the prepared transaction, claim it,
         # and roll it back.
-        conn_follow = self._open_follower(prepared_checkpoint_meta)
+        conn_follow = self._open_follower(prepared_checkpoint_meta, prepared_checkpoint_meta_lsn)
         claim_session = conn_follow.open_session()
         discovered = self._discover_and_claim(conn_follow, claim_session)
         self.assertEqual(
@@ -137,7 +139,8 @@ class test_prepare_discover16(wttest.WiredTigerTestCase):
         conn_follow.reconfigure('disaggregated=(role="leader")')
         conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(250))
         self._checkpoint(conn_follow)
-        post_rollback_meta = self.disagg_get_complete_checkpoint_meta(conn_follow)
+        (post_rollback_meta, post_rollback_meta_lsn) = \
+            self.disagg_get_checkpoint_install(conn_follow)
         # Close without a further checkpoint so the checkpoint chain
         # picked up below ends with the post-rollback checkpoint.
         conn_follow.close('debug=(skip_checkpoint=true)')
@@ -147,7 +150,7 @@ class test_prepare_discover16(wttest.WiredTigerTestCase):
         # return the original committed value; failing the open or
         # failing the search indicates the rollback was not durable.
         try:
-            conn_follow = self._open_follower(post_rollback_meta)
+            conn_follow = self._open_follower(post_rollback_meta, post_rollback_meta_lsn)
         except wiredtiger.WiredTigerError as e:
             self.fail(
                 f"Opening the post-rollback checkpoint as a follower "

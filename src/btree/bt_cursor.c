@@ -2125,14 +2125,22 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
 void
 __wt_btcur_free_cached_memory(WT_CURSOR_BTREE *cbt)
 {
-    WT_SESSION_IMPL *session;
-
-    session = CUR2S(cbt);
+    WT_SESSION_IMPL *session = CUR2S(cbt);
 
     __wt_buf_free(session, &cbt->_row_key);
     __wt_buf_free(session, &cbt->_tmp);
     __wt_buf_free(session, &cbt->_modify_update.buf);
     __wt_buf_free(session, &cbt->_upd_value.buf);
+
+    if (cbt->batch_keys != NULL) {
+        WT_ASSERT(session, cbt->batch_keys_allocated > 0);
+        size_t nkeys = cbt->batch_keys_allocated / sizeof(WT_ITEM);
+        for (size_t i = 0; i < nkeys; i++)
+            __wt_buf_free(session, &cbt->batch_keys[i]);
+        __wt_free(session, cbt->batch_keys);
+        cbt->batch_keys_allocated = 0;
+    } else
+        WT_ASSERT(session, cbt->batch_keys_allocated == 0);
 }
 
 /*

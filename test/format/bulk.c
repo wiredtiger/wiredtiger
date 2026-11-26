@@ -29,18 +29,29 @@
 #include "format.h"
 
 /*
- * bulk_begin_transaction --
- *     Begin a bulk-load transaction.
+ * bulk_begin_transaction_at --
+ *     Begin a bulk-load transaction with the given read timestamp.
  */
 static void
+bulk_begin_transaction_at(WT_SESSION *session, uint64_t ts)
+{
+    /* Writes require snapshot isolation. */
+    wt_wrap_begin_transaction(session, NULL);
+    testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, ts));
+}
+
+/*
+ * bulk_begin_transaction --
+ *     Begin a bulk-load transaction with a newly allocated read timestamp, and return it.
+ */
+static uint64_t
 bulk_begin_transaction(WT_SESSION *session)
 {
     uint64_t ts;
 
-    /* Writes require snapshot isolation. */
-    wt_wrap_begin_transaction(session, NULL);
     ts = next_timestamp(session);
-    testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, ts));
+    bulk_begin_transaction_at(session, ts);
+    return (ts);
 }
 
 /*
@@ -73,6 +84,9 @@ bulk_rollback_transaction(WT_SESSION *session)
 /* Give up on a mirror load after this many rolled-back reads, across the whole load. */
 #define BULK_MIRROR_ROLLBACK_RETRY_MAX 3
 
+/* Give up on a predictable replay load after this many consecutive rolled-back batches. */
+#define BULK_REPLAY_BATCH_RETRY_MAX 10
+
 /*
  * table_load --
  *     Load a single table.
@@ -85,8 +99,10 @@ table_load(TABLE *base, TABLE *table)
     WT_CURSOR *base_cursor, *cursor;
     WT_DECL_RET;
     WT_ITEM base_key, key, value;
+    WT_RAND_STATE batch_rnd;
     WT_SESSION *session;
-    uint32_t committed_keyno, keyno, mirror_retry, rows_current, v;
+    uint64_t batch_read_ts;
+    uint32_t batch_retry, committed_keyno, keyno, mirror_retry, rows_current, v;
     char config[100], track_buf[128];
     bool is_bulk, report_progress;
 
@@ -117,13 +133,15 @@ table_load(TABLE *base, TABLE *table)
     key_gen_init(&key);
     val_gen_init(&value);
 
+    batch_read_ts = WT_TS_NONE;
+    batch_rnd = g.data_rnd;
     if (g.transaction_timestamps_config)
-        bulk_begin_transaction(session);
+        batch_read_ts = bulk_begin_transaction(session);
 
     /* The final number of rows in the table can change, get a local copy of the starting value. */
     rows_current = TV(RUNS_ROWS);
 
-    mirror_retry = 0;
+    batch_retry = mirror_retry = 0;
     for (committed_keyno = keyno = 0; ++keyno <= rows_current;) {
         /* Build a key; build a value, or take the next value from the base mirror. */
         if (table->type == ROW)
@@ -198,10 +216,23 @@ table_load(TABLE *base, TABLE *table)
               "WT_CURSOR.insert failed: %d", ret);
 
             /*
-             * If this occurs with predictable replay, we may need to redo the bulk load with fewer
-             * keys in each batch. For now, we just don't handle it.
+             * With predictable replay the load must be reproducible, so we can't give up on rows.
+             * Redo the rolled-back batch with the same keys, values and read timestamp. Bulk
+             * cursors can't be reused after a failed insert, and without timestamps there are no
+             * batches to redo.
              */
-            testutil_assert(!GV(RUNS_PREDICTABLE_REPLAY));
+            if (GV(RUNS_PREDICTABLE_REPLAY)) {
+                testutil_assert(g.transaction_timestamps_config && !is_bulk);
+                testutil_assertfmt(++batch_retry <= BULK_REPLAY_BATCH_RETRY_MAX,
+                  "table %u: batch ending at key %" PRIu32 " failed to load %d times, ret=%d",
+                  table->id, keyno, BULK_REPLAY_BATCH_RETRY_MAX, ret);
+
+                bulk_rollback_transaction(session);
+                g.data_rnd = batch_rnd;
+                keyno = committed_keyno;
+                bulk_begin_transaction_at(session, batch_read_ts);
+                continue;
+            }
 
             if (g.transaction_timestamps_config) {
                 bulk_rollback_transaction(session);
@@ -245,7 +276,9 @@ table_load(TABLE *base, TABLE *table)
           (report_progress || base != NULL || (!is_bulk && keyno % 50 == 0))) {
             bulk_commit_transaction(session);
             committed_keyno = keyno;
-            bulk_begin_transaction(session);
+            batch_retry = 0;
+            batch_rnd = g.data_rnd;
+            batch_read_ts = bulk_begin_transaction(session);
         }
     }
 
