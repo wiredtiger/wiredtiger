@@ -29,9 +29,9 @@
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_stepdown import LayeredStepdownMixin
+from wtscenario import make_scenarios
 
-# A forward scan blocks first on ingest, then on stable. Roll back each prepared transaction when
-# its conflict is reported and verify that the scan returns the remaining keys and values in order.
+# Independent prepares must block retries until both constituents have resolved.
 @disagg_test_class
 class test_layered_async_stepdown23(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),precise_checkpoint=true,' \
@@ -40,7 +40,19 @@ class test_layered_async_stepdown23(LayeredStepdownMixin, wttest.WiredTigerTestC
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader",stepdown_write_mirroring=false)'
 
-    scenarios = gen_disagg_storages(disagg_only=True)
+    scenarios = make_scenarios(gen_disagg_storages(disagg_only=True), [
+        ('next', dict(forward=True)),
+        ('prev', dict(forward=False)),
+    ], [
+        ('stable_first', dict(stable_first=True)),
+        ('ingest_first', dict(stable_first=False)),
+    ], [
+        ('rollback_stable_first', dict(rollback_stable_first=True)),
+        ('rollback_ingest_first', dict(rollback_stable_first=False)),
+    ], [
+        ('fresh', dict(search_entry=False)),
+        ('search', dict(search_entry=True)),
+    ])
 
     test_name = __qualname__
     uri = f'layered:{test_name}'
@@ -49,73 +61,78 @@ class test_layered_async_stepdown23(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        # Prepare key3 before announcing the step-down, between the committed keys key1 and key5.
-        self.write_at(self.uri, {'key1': 'v', 'key5': 'v'}, 10)
+        self.write_at(self.uri, {'key1': 'stable1', 'key4': 'stable4', 'key7': 'stable7'}, 10)
         self.set_global_ts(1, 10)
 
+        stable_key_first = self.stable_first == self.forward
+        stable_key = 'key3' if stable_key_first else 'key5'
+        ingest_key = 'key5' if stable_key_first else 'key3'
         stable_prep_session = self.conn.open_session()
         stable_prep_cursor = stable_prep_session.open_cursor(self.uri, None, None)
         stable_prep_session.begin_transaction()
-        stable_prep_cursor['key3'] = 'v'
+        stable_prep_cursor[stable_key] = 'prepared-stable'
         stable_prep_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(12))
 
-        # The walk returns key2a before blocking on key2b, then blocks on key3 after key2b resolves.
         self.set_step_down_ts(15)
-        self.write_at(self.uri, {'key2a': 'v'}, 18)
+        self.write_at(self.uri, {'key2': 'ingest2', 'key6': 'ingest6'}, 18)
 
         ingest_prep_session = self.conn.open_session()
         ingest_prep_cursor = ingest_prep_session.open_cursor(self.uri, None, None)
         ingest_prep_session.begin_transaction()
-        ingest_prep_cursor['key2b'] = 'v'
+        ingest_prep_cursor[ingest_key] = 'prepared-ingest'
         ingest_prep_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(22))
-
-        self.write_at(self.uri, {'key4': 'v'}, 25)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-
+        expected = [('key1', 'stable1'), ('key2', 'ingest2'), ('key4', 'stable4'),
+            ('key6', 'ingest6'), ('key7', 'stable7')]
+        if not self.forward:
+            expected.reverse()
+        step = cursor.next if self.forward else cursor.prev
         seen = []
-        conflicts = 0
-        stable_resolved = ingest_resolved = False
-
-        while True:
-            try:
-                if cursor.next() != 0:
-                    break
-            except wiredtiger.WiredTigerError as e:
-                self.assertIn(
-                    wiredtiger.wiredtiger_strerror(wiredtiger.WT_PREPARE_CONFLICT), str(e))
-                conflicts += 1
-                self.assertLess(conflicts, 10, 'the walk never resumed past a blocking key')
-                # Resolve the prepared keys in the order the walk reaches them.
-                if not ingest_resolved:
-                    ingest_prep_session.rollback_transaction()
-                    ingest_prep_cursor.close()
-                    ingest_prep_session.close()
-                    ingest_resolved = True
-                elif not stable_resolved:
-                    stable_prep_session.rollback_transaction()
-                    stable_prep_cursor.close()
-                    stable_prep_session.close()
-                    stable_resolved = True
-                continue
+        if self.search_entry:
+            cursor.set_key(expected[0][0])
+            self.assertEqual(cursor.search(), 0)
             seen.append((cursor.get_key(), cursor.get_value()))
 
+        def walk_until_conflict():
+            for _ in range(len(expected) + 1):
+                try:
+                    self.assertEqual(step(), 0, 'scan ended before the unresolved prepare')
+                except wiredtiger.WiredTigerError as e:
+                    self.assertIn('WT_PREPARE_CONFLICT', str(e))
+                    return
+                seen.append((cursor.get_key(), cursor.get_value()))
+                self.assertEqual(seen, expected[:len(seen)])
+            self.fail('scan did not reach the unresolved prepare')
+
+        walk_until_conflict()
+        self.assertEqual(seen, expected[:2])
+        for _ in range(2):
+            self.assertRaisesException(wiredtiger.WiredTigerError, step,
+                '/conflict with a prepared update/')
+        first, second = (stable_prep_session, ingest_prep_session) \
+            if self.rollback_stable_first else (ingest_prep_session, stable_prep_session)
+        first.rollback_transaction()
+        walk_until_conflict()
+        prefix_len = 3 if self.rollback_stable_first == self.stable_first else 2
+        self.assertEqual(seen, expected[:prefix_len])
+        for _ in range(2):
+            self.assertRaisesException(wiredtiger.WiredTigerError, step,
+                '/conflict with a prepared update/')
+        second.rollback_transaction()
+        for pair in expected[len(seen):]:
+            self.assertEqual(step(), 0)
+            seen.append((cursor.get_key(), cursor.get_value()))
+            self.assertEqual(seen[-1], pair)
+        self.assertEqual(step(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(seen, expected)
         self.session.rollback_transaction()
         cursor.close()
-        if not stable_resolved:
-            stable_prep_session.rollback_transaction()
-            stable_prep_cursor.close()
-            stable_prep_session.close()
-        if not ingest_resolved:
-            ingest_prep_session.rollback_transaction()
-            ingest_prep_cursor.close()
-            ingest_prep_session.close()
-
-        # Both prepared transactions are rolled back, so neither key3 nor key2b ever existed as a
-        # visible value: every other key is returned exactly once, in order.
-        self.assertEqual(conflicts, 2, 'expected exactly one block per constituent')
-        self.assertEqual(seen, [(key, 'v') for key in ('key1', 'key2a', 'key4', 'key5')])
+        stable_prep_cursor.close()
+        stable_prep_session.close()
+        ingest_prep_cursor.close()
+        ingest_prep_session.close()
 
 if __name__ == '__main__':
     wttest.run()
