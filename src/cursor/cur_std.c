@@ -1055,6 +1055,48 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
 }
 
 /*
+ * __wt_cursor_config_prefetch --
+ *     Parse a cursor's pre-fetch configuration. On return, *setp is true if the configuration
+ *     specifies a pre-fetch setting, and *enabledp is that setting. Cursors that do not specify a
+ *     setting inherit the session's setting.
+ */
+int
+__wt_cursor_config_prefetch(WT_SESSION_IMPL *session, const char *cfg[], bool *setp, bool *enabledp)
+{
+    WT_CONFIG_ITEM cval;
+
+    *setp = *enabledp = false;
+
+    WT_RET(__wt_config_gets_def(session, cfg, "prefetch.enabled", 0, &cval));
+    if (cval.len == 0)
+        return (0);
+
+    *setp = true;
+    *enabledp = WT_CONFIG_LIT_MATCH("true", cval);
+    if (*enabledp && !S2C(session)->prefetch.available)
+        WT_RET_MSG(session, EINVAL,
+          "pre-fetching cannot be enabled for the cursor if pre-fetching is configured as "
+          "unavailable");
+    return (0);
+}
+
+/*
+ * __wt_btcur_config_prefetch --
+ *     Set a btree cursor's pre-fetch flags from its configuration.
+ */
+int
+__wt_btcur_config_prefetch(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, const char *cfg[])
+{
+    bool enabled, set;
+
+    F_CLR(cbt, WT_CBT_PREFETCH_DISABLED | WT_CBT_PREFETCH_ENABLED);
+    WT_RET(__wt_cursor_config_prefetch(session, cfg, &set, &enabled));
+    if (set)
+        F_SET(cbt, enabled ? WT_CBT_PREFETCH_ENABLED : WT_CBT_PREFETCH_DISABLED);
+    return (0);
+}
+
+/*
  * __wt_cursor_cache_get --
  *     Open a matching cursor from the cache.
  */
@@ -1126,11 +1168,11 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
               WT_CURSTD_APPEND | WT_CURSTD_BLIND_REMOVE | WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
             F_SET(cursor, overwrite_flag);
             /*
-             * If this is a btree cursor, clear its read_once flag.
+             * If this is a btree cursor, clear its read_once and pre-fetch flags.
              */
             if (WT_BTREE_PREFIX(cursor->internal_uri)) {
                 cbt = (WT_CURSOR_BTREE *)cursor;
-                F_CLR(cbt, WT_CBT_READ_ONCE);
+                F_CLR(cbt, WT_CBT_PREFETCH_DISABLED | WT_CBT_PREFETCH_ENABLED | WT_CBT_READ_ONCE);
             } else {
                 cbt = NULL;
             }
@@ -1145,6 +1187,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
                     WT_ERR(__wt_config_gets_def(session, cfg, "read_once", 0, &cval));
                     if (cval.val != 0)
                         F_SET(cbt, WT_CBT_READ_ONCE);
+                    WT_ERR(__wt_btcur_config_prefetch(session, cbt, cfg));
                 }
 
                 /*

@@ -269,7 +269,7 @@ restart:
                 *refp = ref;
                 WT_ASSERT(session, ref != ref_orig);
 
-                if (__wt_session_prefetch_check(session, ref))
+                if (__wt_session_prefetch_check(session, ref, flags))
                     WT_ERR(__wti_btree_prefetch(session, ref));
 
                 goto done;
@@ -340,7 +340,7 @@ descend:
                 /* Success, so "couple" has been released. */
                 couple = NULL;
 
-                if (__wt_session_prefetch_check(session, ref))
+                if (__wt_session_prefetch_check(session, ref, flags))
                     WT_ERR(__wti_btree_prefetch(session, ref));
 
                 /*

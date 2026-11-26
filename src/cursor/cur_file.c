@@ -1186,6 +1186,8 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     if (cval.val != 0)
         F_SET(cbt, WT_CBT_READ_ONCE);
 
+    WT_ERR(__wt_btcur_config_prefetch(session, cbt, cfg));
+
     /*
      * Size-summary accounting accumulates into the shared data-source statistics as the cursor
      * traverses the tree. Reset here so a fresh open starts from zero. The counters are not

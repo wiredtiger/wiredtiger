@@ -15,14 +15,17 @@
  *     sessions that have not yet read enough pages from disk to justify it. Internal pages are
  *     excluded because identifying which leaf pages to preload from an internal page traversal is
  *     non-trivial. A session that has declared a scan skips the two checks that only exist to guess
- *     at what it has already stated.
+ *     at what it has already stated. A cursor's pre-fetch setting, passed in the read flags,
+ *     overrides the session's setting.
  */
 bool
-__wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     bool scan;
 
-    if (!F_ISSET(session, WT_SESSION_PREFETCH_ENABLED))
+    if (LF_ISSET(WT_READ_PREFETCH_DISABLED))
+        return (false);
+    if (!LF_ISSET(WT_READ_PREFETCH_ENABLED) && !F_ISSET(session, WT_SESSION_PREFETCH_ENABLED))
         return (false);
 
     scan = session->pf.scan_hint;

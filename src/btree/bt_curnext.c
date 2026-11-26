@@ -825,6 +825,11 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);
 
+        if (F_ISSET(cbt, WT_CBT_PREFETCH_ENABLED))
+            LF_SET(WT_READ_PREFETCH_ENABLED);
+        else if (F_ISSET(cbt, WT_CBT_PREFETCH_DISABLED))
+            LF_SET(WT_READ_PREFETCH_DISABLED);
+
         if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
             LF_SET(WT_READ_VISIBLE_ALL);
 
