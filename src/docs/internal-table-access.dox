@@ -1,102 +1,58 @@
 /*! @page internal_table_access Direct access to internal files
 
-Rules short:
- - None of names either accessed externally or internally by WT should contain JSON quoting characters: "{},:[]\\\"'"
- - All the session APIs as well as cursors API are allowed to access directly the following entities:
-    - Anything within WiredTiger namespace
-    - Global and local metadata and history store
-    - Layered tables constituents
- - wt command line utility bypasses all these checks since it's mostly needed for debugging
- - Some APIs like verify and salvage are allowed to access metadata and history store as they don't have other way
-   to access those, might be needed for recovery can shouldn't cause any harm
-    - Layered table constituents should still be accessed only through layered: prefixed entry in
-      this case.
-
-WiredTiger describes storage objects through metadata entries, including references to their
-backing data sources, and accesses those resources through different APIs and tools. Access
-checks should protect users from unintentionally accessing internal data through inappropriate
-entry paths.
+WiredTiger describes storage objects through metadata entries and accesses those resources through
+different APIs and tools. Access checks should protect users from unintentionally accessing internal
+data through inappropriate entry paths.
 
 The rule of thumb is to restrict default write access to internal tables. Selected tools may
 expose internal tables for reading when there is no other suitable interface, while tools
 dedicated to debugging or repair may access internal files by default.
 
 @note All internal-object and URI-namespace admission checks described below are diagnostic
-guardrails. Non-diagnostic builds do not enforce them. Existing syntax, readonly, identifier,
-and storage-support validation remains unchanged.
+guardrails. Non-diagnostic builds do not enforce them. Sessions configured with
+<code>debug=(allow_internal_access=true)</code> bypass these checks.
 
 @section internal_table_access_checks Access matrix
 
-The table describes defaults for ordinary public sessions. Metadata and HS include local and
-shared files. Checks apply to supplied target names and explicit <code>create(source=...)</code>
-values; previously created aliases are not resolved and rechecked. Allow means no admission
-rejection, not a guarantee that an operation is supported.
+The table shows which APIs may directly access internal objects.
 
 <table>
 <tr>
 <th>API / entry-path group</th>
 <th>Ingest / stable constituents</th>
-<th>Metadata</th>
-<th>History store</th>
-<th>WiredTiger-prefixed names</th>
+<th>WiredTiger-prefixed names (including metadata and history store)</th>
 </tr>
 <tr>
 <td><b>Cursor opens</b><br>
-(WT_SESSION::open_cursor: file/table/layered/colgroup/index/tiered and registered prefixes,
-statistics cursors, duplicates, cache reuse, checkpoint views, projections, dump/random/version,
-raw/bulk/append/overwrite; MCP <code>open_cursor</code>, <code>get_statistics_by_category</code>)</td>
-<td colspan="4">Reject</td>
-</tr>
-<tr>
-<td><b><code>metadata:</code> / <code>metadata:create</code></b><br>
-(WT_SESSION::open_cursor on these URIs; MCP <code>list_tables</code>,
-<code>get_metadata</code>, <code>get_schema</code>)</td>
-<td>N/A: no constituent records</td>
-<td>Allow: public metadata interface; existing behavior</td>
-<td colspan="2">N/A: metadata entries only</td>
+WT_SESSION::open_cursor</td>
+<td colspan="2">Reject</td>
 </tr>
 <tr>
 <td><b>Schema/mutation APIs and tools</b><br>
 (WT_SESSION::create, including explicit source, WT_SESSION::drop, WT_SESSION::alter,
 foreground WT_SESSION::compact, WT_SESSION::truncate with a URI, WT_SESSION::publish;
 MCP <code>create_table/drop_table/alter_table/truncate</code>)</td>
-<td colspan="4">Reject</td>
+<td colspan="2">Reject</td>
 </tr>
 <tr>
 <td><b>Verification and salvage</b><br>
 (WT_SESSION::verify, including dump and size-repair options, WT_SESSION::salvage;
 MCP <code>verify_table/dump_block</code>)</td>
 <td>Reject: use logical layered verification where supported</td>
-<td colspan="3">Allow - maintenance access</td>
+<td>Allow: maintenance access</td>
 </tr>
 <tr>
 <td><b>Comparison scripts</b><br>
 (<code>wt_cmp_uri.py</code>, <code>wt_cmp_dir</code>)</td>
-<td colspan="4">Allow: debugging tools; internal access enabled</td>
+<td colspan="2">Allow: debugging tools; internal access enabled</td>
 </tr>
 <tr>
 <td><b><code>wt</code> command-line utility</b><br>
 (all supported subcommands, including schema/mutation, <code>dump -e</code>, and
 <code>page</code> with a URI or <code>-t table_id</code>; wrappers invoking <code>wt</code>,
 including <code>wt_verify.py</code>)</td>
-<td colspan="4">Allow: debugging/repair tool; internal access enabled by default</td>
+<td colspan="2">Allow: debugging/repair tool; internal access enabled by default</td>
 </tr>
 </table>
-
-@section internal_table_access_notes Notes on internal access and debugging
-
-- Internal sessions and internal cursor opens retain access to all internal objects.
-- The <code>WiredTiger</code> namespace check applies to names with at least one URI colon,
-  including single-prefix names and qualified column-group/index names. Constituent naming
-  checks apply in disaggregated storage; specific file restrictions take precedence.
-- Debug-created aliases and already-open cursors retain their existing behavior. Disabling
-  internal access does not revoke them or add a check to bounding-cursor truncate.
-- The <code>wt</code> utility is intended for debugging and repair; all supported subcommands
-  use internally opted-in sessions by default, including reads, writes, schema and maintenance.
-  No separate utility flag is needed. Comparison scripts also use opted-in sessions without
-  extra target or ownership filters. Other tools follow their session configuration.
-- <code>debug=(allow_internal_access=true)</code> at WT_CONNECTION::open_session or
-  WT_SESSION::reconfigure bypasses all internal-object restrictions for reads, writes, schema
-  and maintenance. Existing API support and storage-mode restrictions still apply.
 
 */

@@ -9,13 +9,6 @@ WiredTiger includes a command line utility, \c wt.
 The \c wt tool is a command-line utility that provides access to
 various pieces of the WiredTiger functionality.
 
-The utility is intended for debugging and repair. All supported commands enable internal
-access by default, including reads, writes, schema operations, maintenance, and interactive dump.
-Existing readonly, storage-mode, and operation-support restrictions still apply.
-Internal-object admission checks are diagnostic guardrails; the utility enables the session
-exception so these checks do not prevent its debugging operations.
-See @ref internal_table_access for the API and other tools' access rules.
-
 @section util_global_options OPTIONS
 There are several global options:
 
