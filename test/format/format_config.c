@@ -272,6 +272,7 @@ static void
 config_table(TABLE *table, void *arg)
 {
     CONFIG *cp;
+    const char *page_log;
 
     (void)arg; /* unused argument */
 
@@ -315,6 +316,23 @@ config_table(TABLE *table, void *arg)
             WARN("turning off disagg.blind_remove for table%" PRIu32 " as it isn't layered",
               table->id);
         config_off(table, "disagg.blind_remove");
+    }
+
+    /* Disaggregated storage limits the page sizes to 32MB (2^25). */
+    page_log = GVS(DISAGG_PAGE_LOG);
+    if (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0) {
+        if (TV(BTREE_INTERNAL_PAGE_MAX) > 25) {
+            if (config_explicit(table, "btree.internal_page_max"))
+                WARN("lowering btree.internal_page_max for table%" PRIu32 " to the disagg limit",
+                  table->id);
+            TV(BTREE_INTERNAL_PAGE_MAX) = 25;
+        }
+        if (TV(BTREE_LEAF_PAGE_MAX) > 25) {
+            if (config_explicit(table, "btree.leaf_page_max"))
+                WARN("lowering btree.leaf_page_max for table%" PRIu32 " to the disagg limit",
+                  table->id);
+            TV(BTREE_LEAF_PAGE_MAX) = 25;
+        }
     }
 
     /* Page sizes are configured using powers-of-two or megabytes, convert them. */

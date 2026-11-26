@@ -469,8 +469,11 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("rollback_to_stable",   "Rollback to stable is not needed at startup"),
             ("test_backup",          "Can't backup a disagg table"),
             ("test_compact",         "Can't compact a disagg table"),
+            ("test_config01",        "Page sizes over 32MB are not supported in disagg storage"),
             ("test_config_json",     "Disagg hook's create function can't handle a json config string"),
             ("test_cursor_big",      "Cursor caching verified with stats"),
+            ("test_cursor_random02", "Page sizes over 32MB are not supported in disagg storage"),
+            ("test_cursor_random03", "Page sizes over 32MB are not supported in disagg storage"),
             ("test_cursor_bound",    "Can't use cursor bounds with a disagg table"),
             ("test_import",          "Can't import a disagg table"),
             ("test_salvage",         "Salvage is not currently supported for disagg"), # FIXME-WT-14740
