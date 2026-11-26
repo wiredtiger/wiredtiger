@@ -272,7 +272,6 @@ static void
 config_table(TABLE *table, void *arg)
 {
     CONFIG *cp;
-    const char *page_log;
 
     (void)arg; /* unused argument */
 
@@ -318,9 +317,8 @@ config_table(TABLE *table, void *arg)
         config_off(table, "disagg.blind_remove");
     }
 
-    /* Disaggregated storage limits the page sizes to 32MB (2^25). */
-    page_log = GVS(DISAGG_PAGE_LOG);
-    if (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0) {
+    /* Disaggregated storage limits the page sizes to 32MB, which is 2^25. */
+    if (g.disagg_storage_config) {
         if (TV(BTREE_INTERNAL_PAGE_MAX) > 25) {
             if (config_explicit(table, "btree.internal_page_max"))
                 WARN("lowering btree.internal_page_max for table%" PRIu32 " to the disagg limit",
@@ -528,13 +526,15 @@ config_run(void)
 
     config_in_memory(); /* Periodically run in-memory. */
 
+    /* The tables depend on whether disaggregated storage is in use, configure it first. */
+    config_disagg_storage();
+
     tables_apply(config_table, NULL); /* Configure the tables. */
 
     /* FIXME-WT-12983: Temporarily disable salvage test due to increased failures. */
     config_off(NULL, "ops.salvage");
 
     /* Order can be important, don't shuffle without careful consideration. */
-    config_disagg_storage();                         /* Disaggregated storage */
     config_disagg_key_provider();                    /* Disaggregated key provider */
     config_transaction();                            /* Transactions */
     config_backup_incr();                            /* Incremental backup */
