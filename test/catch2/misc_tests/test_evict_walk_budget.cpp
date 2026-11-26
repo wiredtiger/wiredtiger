@@ -15,30 +15,32 @@ TEST_CASE("Eviction walk budget scales with cache share", "[evict_walk_budget]")
 {
     struct {
         uint32_t target;
-        bool clean, enabled;
+        bool clean, clean_only, enabled;
         uint64_t tree, cache, min_pages;
     } cases[] = {
-      {1, true, false, 100, 100, 10},
-      {20, true, false, 100, 100, 200},
-      {1, true, true, 0, 100, 100},
-      {1, true, true, 1, 100, 109},
-      {1, true, true, 20, 100, 280},
-      {1, true, true, 50, 100, 550},
-      {1, true, true, 100, 100, 1000},
-      {1, true, true, 200, 100, 1000},
-      {50, true, true, 50, 100, 550},
-      {50, true, true, 55, 100, 595},
-      {1, true, true, 100, 0, 10},
-      {200, true, true, 20, 100, 2000},
-      {1, false, true, 50, 100, 100},
-      {20, false, true, 50, 100, 2000},
+      {1, true, true, false, 100, 100, 10},
+      {20, true, true, false, 100, 100, 200},
+      {1, true, true, true, 0, 100, 100},
+      {1, true, true, true, 1, 100, 109},
+      {1, true, true, true, 20, 100, 280},
+      {1, true, true, true, 50, 100, 550},
+      {1, true, true, true, 100, 100, 1000},
+      {1, true, true, true, 200, 100, 1000},
+      {50, true, true, true, 50, 100, 550},
+      {50, true, true, true, 55, 100, 595},
+      {1, true, true, true, 100, 0, 10},
+      {200, true, true, true, 20, 100, 2000},
+      {1, false, false, true, 50, 100, 100},
+      {20, false, false, true, 50, 100, 2000},
+      {20, true, false, false, 100, 100, 2000},
+      {20, true, false, true, 20, 100, 2000},
     };
 
     for (const auto &c : cases) {
-        INFO("target=" << c.target << " clean=" << c.clean << " enabled=" << c.enabled
-                       << " tree=" << c.tree << " cache=" << c.cache);
-        REQUIRE(
-          __evict_min_walk_pages(c.target, c.clean, c.enabled, c.tree, c.cache) == c.min_pages);
+        INFO("target=" << c.target << " clean=" << c.clean << " clean_only=" << c.clean_only
+                       << " enabled=" << c.enabled << " tree=" << c.tree << " cache=" << c.cache);
+        REQUIRE(__evict_min_walk_pages(
+                  c.target, c.clean, c.clean_only, c.enabled, c.tree, c.cache) == c.min_pages);
     }
 }
 
