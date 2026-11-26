@@ -28,6 +28,8 @@
 
 #include "format.h"
 
+#define PREPARE_TIMESTAMP_WINDOW 10
+
 /*
  * wts_prepare_discover --
  *     Discover and process prepared transactions.
@@ -73,11 +75,8 @@ wts_prepare_discover(WT_CONNECTION *conn)
 
     /* Iterate through all prepared transactions and claim pending prepared transactions. */
     discover_count = 0;
-    /*
-     * Commit/rollback with a timestamp greater than the prepare timestamp. We use the current
-     * timestamp + 10 to ensure it's newer
-     */
-    ts = __wt_atomic_add_uint64_v(&g.timestamp, 10);
+    /* Advance by PREPARE_TIMESTAMP_WINDOW to resolve recovered prepares above stable. */
+    ts = __wt_atomic_add_uint64_v(&g.timestamp, PREPARE_TIMESTAMP_WINDOW);
     while ((ret = cursor->next(cursor)) == 0) {
         discover_count++;
         testutil_check(cursor->get_key(cursor, &prepared_id));
