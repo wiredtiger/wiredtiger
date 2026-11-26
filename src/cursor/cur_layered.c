@@ -4743,7 +4743,7 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
      * reopened. As with the size summary, disable caching so the cursor is never handed back to an
      * open with a different setting.
      */
-    WT_ERR(__wt_cursor_config_prefetch(session, cfg, &prefetch_set, &prefetch_enabled));
+    WT_ERR(__wti_cursor_config_prefetch(session, cfg, &prefetch_set, &prefetch_enabled));
     if (prefetch_set) {
         F_SET(clayered,
           prefetch_enabled ? WTI_CLAYERED_PREFETCH_ENABLED : WTI_CLAYERED_PREFETCH_DISABLED);

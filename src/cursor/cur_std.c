@@ -1055,13 +1055,14 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
 }
 
 /*
- * __wt_cursor_config_prefetch --
+ * __wti_cursor_config_prefetch --
  *     Parse a cursor's pre-fetch configuration. On return, *setp is true if the configuration
  *     specifies a pre-fetch setting, and *enabledp is that setting. Cursors that do not specify a
  *     setting inherit the session's setting.
  */
 int
-__wt_cursor_config_prefetch(WT_SESSION_IMPL *session, const char *cfg[], bool *setp, bool *enabledp)
+__wti_cursor_config_prefetch(
+  WT_SESSION_IMPL *session, const char *cfg[], bool *setp, bool *enabledp)
 {
     WT_CONFIG_ITEM cval;
 
@@ -1081,16 +1082,16 @@ __wt_cursor_config_prefetch(WT_SESSION_IMPL *session, const char *cfg[], bool *s
 }
 
 /*
- * __wt_btcur_config_prefetch --
+ * __wti_btcur_config_prefetch --
  *     Set a btree cursor's pre-fetch flags from its configuration.
  */
 int
-__wt_btcur_config_prefetch(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, const char *cfg[])
+__wti_btcur_config_prefetch(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, const char *cfg[])
 {
     bool enabled, set;
 
     F_CLR(cbt, WT_CBT_PREFETCH_DISABLED | WT_CBT_PREFETCH_ENABLED);
-    WT_RET(__wt_cursor_config_prefetch(session, cfg, &set, &enabled));
+    WT_RET(__wti_cursor_config_prefetch(session, cfg, &set, &enabled));
     if (set)
         F_SET(cbt, enabled ? WT_CBT_PREFETCH_ENABLED : WT_CBT_PREFETCH_DISABLED);
     return (0);
@@ -1187,7 +1188,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
                     WT_ERR(__wt_config_gets_def(session, cfg, "read_once", 0, &cval));
                     if (cval.val != 0)
                         F_SET(cbt, WT_CBT_READ_ONCE);
-                    WT_ERR(__wt_btcur_config_prefetch(session, cbt, cfg));
+                    WT_ERR(__wti_btcur_config_prefetch(session, cbt, cfg));
                 }
 
                 /*
