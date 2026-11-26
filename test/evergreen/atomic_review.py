@@ -20,8 +20,10 @@ TOKENS = re.compile(r'\b(?:__wt_atomic\w*|__wt_tsan\w*|__tsan_\w*|WT_\w*BARRIER\
 
 
 def needs_review(files):
+    # Ignore unchanged context and hunk headers when looking for atomic changes.
     return any(file['filename'] in HEADERS or file.get('previous_filename') in HEADERS or
-        TOKENS.search(file.get('patch', '')) for file in files)
+        any(TOKENS.search(line[1:]) for line in file.get('patch', '').splitlines()
+            if line.startswith(('+', '-'))) for file in files)
 
 
 def api(url, body=None):
