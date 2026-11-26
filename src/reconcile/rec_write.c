@@ -2860,7 +2860,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                  */
                 if (chunk->image.size >
                   (WT_PAGE_IS_INTERNAL(page) ? btree->maxintlpage : btree->maxleafpage))
-                    WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_size_threshold);
+                    WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_large_page);
                 else if (block_meta->delta_count < conn->page_delta.max_consecutive_delta) {
                     WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
                     /*

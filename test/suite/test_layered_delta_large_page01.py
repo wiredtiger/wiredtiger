@@ -112,7 +112,7 @@ class test_layered_delta_large_page01(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         deltas = self.get_stat(stat.dsrc.rec_page_delta_leaf)
-        rejected = self.get_stat(stat.dsrc.rec_page_delta_rejected_size_threshold)
+        rejected = self.get_stat(stat.dsrc.rec_page_delta_rejected_large_page)
         if self.expect_delta:
             self.assertGreater(deltas, 0)
             self.assertEqual(rejected, 0)
