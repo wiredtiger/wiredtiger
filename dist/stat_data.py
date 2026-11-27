@@ -186,6 +186,8 @@ conn_stats = [
     ##########################################
     ConnStat('btree_dsrc_stats', 'btrees with data-source statistics currently allocated',
         'no_clear,no_scale'),
+    ConnStat('btree_dsrc_stats_bytes', 'bytes currently requested for data-source statistics',
+        'no_clear,no_scale,size'),
     ConnStat('btree_open', 'btrees currently open', 'no_clear,no_scale'),
     ConnStat('buckets', 'hash bucket array size general', 'no_clear,no_scale,size'),
     ConnStat('buckets_dh', 'hash bucket array size for data handles', 'no_clear,no_scale,size'),

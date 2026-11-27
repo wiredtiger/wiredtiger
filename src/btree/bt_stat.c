@@ -64,8 +64,10 @@ __stat_dsrc_alloc(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
         allocated = ret == 0;
     }
     __wt_spin_unlock(session, &handle->close_lock);
-    if (allocated)
+    if (allocated) {
         WT_STAT_CONN_INCR(session, btree_dsrc_stats);
+        WT_STAT_CONN_INCRV(session, btree_dsrc_stats_bytes, WT_STAT_DSRC_STAT_BYTES);
+    }
     return (ret);
 }
 
