@@ -295,13 +295,8 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
              * Take all of the urgent pages plus a third of ordinary candidates (which could be
              * expressed as WTI_EVICT_WALK_INCR / WTI_EVICT_WALK_BASE). In the steady state, we want
              * to get as many candidates as the eviction walk adds to the queue.
-             *
-             * That said, if there is only one entry, which is normal when populating an empty file,
-             * don't exclude it.
              */
-            queue->evict_candidates = 1 + candidates + ((entries - candidates) - 1) / 3;
-            if (queue->evict_candidates > entries / 2)
-                queue->evict_candidates = entries / 2;
+            queue->evict_candidates = __evict_lru_candidate_count(entries, candidates);
 
             evict->read_gen_oldest = read_gen_oldest;
         }

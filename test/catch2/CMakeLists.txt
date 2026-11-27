@@ -36,6 +36,7 @@ else()
         misc_tests/test_evict_disagg_cache_eligible.cpp
         misc_tests/test_evict_disagg_cache_source.cpp
         misc_tests/test_evict_needed_pct_full.cpp
+        misc_tests/test_evict_lru_candidate_count.cpp
         misc_tests/test_evict_walk_budget.cpp
         misc_tests/test_evict_updates_trigger_reconfigure.cpp
         misc_tests/test_file_id.cpp
