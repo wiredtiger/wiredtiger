@@ -533,7 +533,7 @@ TEST_CASE("Layered skip-write retains the backing generation in the victim cache
 {
     std::string cfg = palite_conn_cfg("victim_cache_max_entries=10000");
     cfg += ",cache_size=2GB,precise_checkpoint=true,checkpoint_threads=1,";
-    cfg += "page_delta=(delta_pct=100,leaf_page_delta=true)";
+    cfg += "page_delta=(delta_pct=1000,leaf_page_delta=true)";
     const char *home = DB_HOME "_victim_cache_skip_write_gen";
     testutil_recreate_dir(home);
     connection_wrapper conn(home, cfg.c_str());

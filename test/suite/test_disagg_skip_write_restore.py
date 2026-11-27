@@ -42,9 +42,10 @@ class test_disagg_skip_write_restore(DisaggSizeTestMixin, wttest.WiredTigerTestC
     conn_config = (
         'disaggregated=(role="leader",lose_all_my_data=true),'
         'cache_size=2GB,statistics=(all),precise_checkpoint=true,'
-        # Allow a delta up to the size of the image it applies to; a larger one is rewritten
-        # whole.
-        'page_delta=(delta_pct=100,leaf_page_delta=true),'
+        # A delete leaves a page smaller than the delta describing it, so allow
+        # a delta to exceed the image it applies to; otherwise these pages are
+        # rewritten whole and never come back from disk empty.
+        'page_delta=(delta_pct=1000,leaf_page_delta=true),'
         # The test counts exactly how many pages get rebuilt from deltas, which
         # depends on the order pages are reconciled in; pin this rather than let
         # the parallel_checkpoint hook reconcile leaf pages out of order.

@@ -42,15 +42,15 @@ class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
     test_name = __qualname__
     uri = f'layered:{test_name}'
 
-    # Use delta_pct=100 so the size threshold rejects a delta only if it is larger than the page
-    # image; only the delete threshold should determine whether we write a delta or a full page.
+    # Use delta_pct=1000 so the size threshold never rejects a delta; only the delete
+    # threshold should determine whether we write a delta or a full page.
     # Use delete_pct=50 explicitly to test the boundary at a fixed, predictable value.
     conn_base_config = (
         'cache_size=32MB,'
         'transaction_sync=(enabled,method=fsync),'
         'statistics=(all),'
         'statistics_log=(wait=1,json=true,on_close=true),'
-        'page_delta=(delta_pct=100,delete_pct=50),'
+        'page_delta=(delta_pct=1000,delete_pct=50),'
     )
     conn_delta_config = 'disaggregated=(role="leader"),page_delta=(leaf_page_delta=true,internal_page_delta=false),'
 
