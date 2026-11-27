@@ -215,6 +215,14 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
       (sizeof(WT_TIME_WINDOW) / sizeof(uint64_t)) * WT_INTPACK64_MAXSIZE)
 
 /*
+ * The most the history store adds to a key and value when it saves an update: its key (btree ID,
+ * the length of the user key, start timestamp and counter) and its value (stop timestamp, durable
+ * timestamp and update type) pack seven more integers around them. The history store is written
+ * without going through this check, so the item has to leave room for its own history store record.
+ */
+#define WT_DISAGG_HS_RECORD_RESERVE (7 * WT_INTPACK64_MAXSIZE)
+
+/*
  * __cursor_disagg_size_chk --
  *     Return if a key and value are too large to fit in a single disaggregated page.
  */
@@ -230,8 +238,8 @@ __cursor_disagg_size_chk(WT_SESSION_IMPL *session, const WT_ITEM *key, const WT_
 
     kv_size = value->size + (btree->type == BTREE_ROW ? key->size : 0);
 
-    /* Add the room for the cells, then the page and block headers. */
-    size = kv_size + WT_DISAGG_ITEM_CELL_RESERVE;
+    /* Add the room for the history store record and the cells, then the page and block headers. */
+    size = kv_size + WT_DISAGG_HS_RECORD_RESERVE + WT_DISAGG_ITEM_CELL_RESERVE;
     WT_RET(bm->write_size(bm, session, &size));
 
     if (size > WT_BLOCK_DISAGG_MAX_WRITE_SIZE) {
