@@ -42,6 +42,12 @@ struct __wt_semaphore {
 };
 
 /*
+ * A writer waiting for its ticket sleeps on the futex word of its ticket modulo this count. Writers
+ * whose tickets share a word wake together.
+ */
+#define WT_RWLOCK_WRITER_SLOTS 16
+
+/*
  * Read/write locks:
  *
  * WiredTiger uses read/write locks for shared/exclusive access to resources.
@@ -68,7 +74,12 @@ struct __wt_rwlock { /* Read/write lock */
     int16_t stat_session_usecs_off; /* waiting session offset */
 
     WT_CONDVAR *cond_readers; /* Blocking readers */
-    WT_CONDVAR *cond_writers; /* Blocking writers */
+    WT_CONDVAR *cond_writers; /* Writers waiting for a free ticket */
+
+    /* Futex words of writers waiting for their ticket */
+    wt_shared uint32_t writer_wait[WT_RWLOCK_WRITER_SLOTS];
+    /* Writers in a futex wait, unlock skips the wake when zero */
+    wt_shared uint32_t writers_sleeping;
 
 #ifdef TSAN_BUILD
     /*
