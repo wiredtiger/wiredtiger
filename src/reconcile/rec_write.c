@@ -1590,6 +1590,7 @@ __rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
     WT_BTREE *btree;
     WTI_REC_CHUNK *tmp;
     size_t inuse;
+    bool below_write_limit, short_intl_page;
 
     btree = S2BT(session);
 
@@ -1610,10 +1611,19 @@ __rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
      * contain the current item if we don't have enough items to split an internal page.
      */
     inuse = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
-    if (inuse < r->split_size / 2 && !__wti_rec_need_split(r, 0))
+
+    /*
+     * A disaggregated page must fit in a single page log message, so neither a small chunk nor the
+     * minimum entry count can justify growing past the maximum write size. A page with fewer than
+     * two entries can't be split, so it counts as below the limit.
+     */
+    below_write_limit = !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || r->entries < 2 ||
+      inuse + next_len <= WT_BLOCK_DISAGG_MAX_WRITE_SIZE;
+    if (inuse < r->split_size / 2 && !__wti_rec_need_split(r, 0) && below_write_limit)
         goto done;
 
-    if (r->page->type == WT_PAGE_ROW_INT && r->entries < WT_PAGE_INTL_MINIMUM_ENTRIES)
+    short_intl_page = r->page->type == WT_PAGE_ROW_INT && r->entries < WT_PAGE_INTL_MINIMUM_ENTRIES;
+    if (short_intl_page && below_write_limit)
         goto done;
 
     /* All page boundaries reset the dictionary. */
@@ -2877,6 +2887,15 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                           r->delta.size * 100 / chunk->image.size >
                             (100 + conn->page_delta.delta_pct) / 2) {
                             WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_size_threshold);
+                            build_delta = false;
+                        } else if (block_meta->cumulative_size + r->delta.size >
+                          WT_BLOCK_DISAGG_MAX_WRITE_SIZE) {
+                            /*
+                             * The page log returns a page together with all of its deltas in a
+                             * single message, so the chain must not grow past the maximum write
+                             * size.
+                             */
+                            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_chain_size);
                             build_delta = false;
                         }
                     } else

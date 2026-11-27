@@ -425,7 +425,8 @@ file_config = format_meta + file_runtime_config + file_disaggregated_config + [
         the maximum page size for internal nodes, in bytes; the size must be a multiple of the
         allocation size and is significant for applications wanting to avoid excessive L2 cache
         misses while searching the tree. The page maximum is the bytes of uncompressed data,
-        that is, the limit is applied before any block compression is done''',
+        that is, the limit is applied before any block compression is done. Tables using the
+        disaggregated block manager are limited to 32MB''',
         min='512B', max='512MB'),
     Config('internal_item_max', '0', r'''
         This option is no longer supported, retained for backward compatibility''',
@@ -448,7 +449,8 @@ file_config = format_meta + file_runtime_config + file_disaggregated_config + [
         the maximum page size for leaf nodes, in bytes; the size must be a multiple of the
         allocation size, and is significant for applications wanting to maximize sequential data
         transfer from a storage device. The page maximum is the bytes of uncompressed data,
-        that is, the limit is applied before any block compression is done.''',
+        that is, the limit is applied before any block compression is done. Tables using the
+        disaggregated block manager are limited to 32MB.''',
         min='512B', max='512MB'),
     Config('leaf_value_max', '0', r'''
         the largest value stored in a leaf node, in bytes. If set, values larger than the
@@ -727,10 +729,10 @@ connection_runtime_config = [
             instead of the optimized range delete. Intended for debugging the disaggregated
             slow/fast truncate split; leader always uses fast truncate.''',
             type='boolean', undoc=True),
-        # FIXME-WT-18723: remove once prepared transactions are supported across a step-down.
+        # FIXME-WT-18723: Remove once the remaining fixtures no longer need the bypass.
         Config('disagg_stepdown_prepare', 'false', r'''
-            !!! FOR INTERNAL TESTING ONLY. If true, bypass the asserts that otherwise abort a
-            prepared transaction while the step-down timestamp is set.''',
+            !!! FOR INTERNAL TESTING ONLY. Bypass the late-prepare check and the diagnostic check
+            for active writes during step-down.''',
             type='boolean', undoc=True),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force history store eviction

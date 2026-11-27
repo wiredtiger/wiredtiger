@@ -28,17 +28,16 @@
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class
+from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
-# Layered iteration returns readable keys before prepared removes and resumes after commit or rollback.
+# Layered iteration preserves fixed-timestamp visibility across multi-key prepare resolution.
 
 @disagg_test_class
-class test_layered_prepare01(wttest.WiredTigerTestCase):
+class test_layered_prepare01(LayeredStepdownMixin, wttest.WiredTigerTestCase):
 
-    # stable_keys: inserted by the leader and checkpointed into stable.
-    # prepared_keys: subset for which the follower prepares removes in ingest.
-    # Commit keeps the removed subset hidden; rollback restores all stable keys.
     test_name = __qualname__
+    prepare_in_window = False
     scenarios = make_scenarios([
         ('only_key',  dict(stable_keys=['1'],         prepared_keys=['1'])),
         ('first',     dict(stable_keys=['1','2','3'], prepared_keys=['1'])),
@@ -48,21 +47,38 @@ class test_layered_prepare01(wttest.WiredTigerTestCase):
         ('last_two',  dict(stable_keys=['1','2','3'], prepared_keys=['2','3'])),
         ('outer_two', dict(stable_keys=['1','2','3'], prepared_keys=['1','3'])),
     ], [
-        ('rollback', dict(commit_prepared=False)),
-        ('commit', dict(commit_prepared=True)),
-    ])
+        ('rollback', dict(commit_ts=None, read_ts=400)),
+        ('below_prepare', dict(commit_ts=350, read_ts=299)),
+        ('at_prepare', dict(commit_ts=300, read_ts=300)),
+        ('visible_commit', dict(commit_ts=350, read_ts=400)),
+        ('future_commit', dict(commit_ts=450, read_ts=400)),
+    ], [
+        ('next', dict(forward=True)),
+        ('prev', dict(forward=False)),
+    ], [
+        ('insert', dict(operation='insert')),
+        ('update', dict(operation='update')),
+        ('remove', dict(operation='remove')),
+    ], [
+        ('follower_ingest', dict(on_leader=False, stepdown=False, mirroring=False)),
+        ('leader_stable', dict(on_leader=True, stepdown=False, mirroring=False)),
+        ('window_unmirrored', dict(on_leader=True, stepdown=True, mirroring=False)),
+        ('window_mirrored', dict(on_leader=True, stepdown=True, mirroring=True)),
+        ('window_ingest_unmirrored',
+            dict(on_leader=True, stepdown=True, mirroring=False, prepare_in_window=True)),
+        ('window_ingest_mirrored',
+            dict(on_leader=True, stepdown=True, mirroring=True, prepare_in_window=True)),
+    ], include=lambda _, s:
+        (s.get('prepare_in_window', False) and s['read_ts'] == 400 and
+            s['commit_ts'] in (None, 350)) or
+        (not s.get('prepare_in_window', False) and
+            (not s['stepdown'] or s['commit_ts'] is None)))
 
-    conn_base_config = ('precise_checkpoint=true,')
-    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+    conn_base_config = 'precise_checkpoint=true,debug_mode=(disagg_stepdown_prepare=true),'
 
-    def safe_next(self, cursor):
-        '''Call cursor.next(), returning WT_PREPARE_CONFLICT instead of raising.'''
-        try:
-            return cursor.next()
-        except wiredtiger.WiredTigerError as e:
-            if 'WT_PREPARE_CONFLICT' in str(e):
-                return wiredtiger.WT_PREPARE_CONFLICT
-            raise
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader",stepdown_write_mirroring=' + \
+            str(self.mirroring).lower() + ')'
 
     def test_iterate_after_prepare_resolution(self):
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() +
@@ -70,65 +86,116 @@ class test_layered_prepare01(wttest.WiredTigerTestCase):
         uri = f'table:{self.test_name}'
         self.session.create(uri, 'key_format=S,value_format=S,block_manager=disagg,type=layered')
 
-        # Leader: insert stable_keys and checkpoint.
+        original = {k: 'original_' + k for k in self.stable_keys
+            if self.operation != 'insert' or k not in self.prepared_keys}
         with self.transaction(session=self.session, commit_timestamp=100):
             c = self.session.open_cursor(uri)
-            for k in self.stable_keys:
-                c[k] = k
+            for k, value in original.items():
+                c[k] = value
             c.close()
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(200)}')
         self.session.checkpoint()
         self.disagg_advance_checkpoint(conn_follow)
 
-        # Follower: prepare removes of prepared_keys into ingest.
-        prep_session = conn_follow.open_session('')
+        step_down_ts = 250 if self.prepare_in_window else 325
+        if self.prepare_in_window:
+            self.set_step_down_ts(step_down_ts)
+            self.write_at(uri, {'0': 'ingest_0', '4': 'ingest_4'}, 275)
+            original.update({'0': 'ingest_0', '4': 'ingest_4'})
+
+        connection = self.conn if self.on_leader else conn_follow
+        prep_session = connection.open_session('')
         prep_cursor = prep_session.open_cursor(uri, None, 'overwrite=false')
         prep_session.begin_transaction()
         for k in self.prepared_keys:
             prep_cursor.set_key(k)
-            prep_cursor.remove()
+            if self.operation == 'remove':
+                self.assertEqual(prep_cursor.remove(), 0)
+            else:
+                prep_cursor.set_value('prepared_' + k)
+                op = prep_cursor.insert if self.operation == 'insert' else prep_cursor.update
+                self.assertEqual(op(), 0)
         prep_cursor.close()
         prep_session.prepare_transaction(
                 f'prepare_timestamp={self.timestamp_str(300)}'
                 + f',prepared_id={self.prepared_id_str(1)}')
 
-        # Open a reader whose read_timestamp covers the prepare.
-        iter_session = conn_follow.open_session('')
-        iter_session.begin_transaction(f'read_timestamp={self.timestamp_str(400)}')
-        cursor = iter_session.open_cursor(uri)
+        if self.stepdown and not self.prepare_in_window:
+            self.set_step_down_ts(step_down_ts)
+            self.write_at(uri, {'0': 'ingest_0', '4': 'ingest_4'}, 350)
+            original.update({'0': 'ingest_0', '4': 'ingest_4'})
 
-        expected = [(k, k) for k in self.stable_keys
-            if not self.commit_prepared or k not in self.prepared_keys]
-        first_prepared = min(self.prepared_keys)
-        expected_prefix = [(k, k) for k in self.stable_keys if k < first_prepared]
+        iter_session = connection.open_session('')
+        iter_session.begin_transaction(f'read_timestamp={self.timestamp_str(self.read_ts)}')
+        cursor = iter_session.open_cursor(uri)
+        step = cursor.next if self.forward else cursor.prev
+
+        visible = original.copy()
+        if self.commit_ts is not None and self.commit_ts <= self.read_ts:
+            for k in self.prepared_keys:
+                if self.operation == 'remove':
+                    del visible[k]
+                else:
+                    visible[k] = 'prepared_' + k
+        expected = sorted(visible.items(), reverse=not self.forward)
+        first_prepared = min(self.prepared_keys) if self.forward else max(self.prepared_keys)
+        expected_prefix = sorted(((k, v) for k, v in original.items()
+            if (k < first_prepared if self.forward else k > first_prepared)),
+            reverse=not self.forward) if self.read_ts >= 300 else expected
         prefix = []
         for pair in expected_prefix:
-            self.assertEqual(self.safe_next(cursor), 0)
+            self.assertEqual(step(), 0)
             prefix.append((cursor.get_key(), cursor.get_value()))
             self.assertEqual(prefix[-1], pair)
         self.assertEqual(prefix, expected_prefix)
 
-        # The first prepared key conflicts until the prepared transaction resolves.
-        self.assertEqual(self.safe_next(cursor), wiredtiger.WT_PREPARE_CONFLICT)
-        self.assertEqual(self.safe_next(cursor), wiredtiger.WT_PREPARE_CONFLICT)
+        if self.read_ts >= 300:
+            for _ in range(2):
+                self.assertRaisesException(wiredtiger.WiredTigerError, step,
+                    '/conflict with a prepared update/')
+            if prefix:
+                reverse = cursor.prev if self.forward else cursor.next
+                if self.prepare_in_window and self.mirroring:
+                    for _ in range(2):
+                        self.assertRaisesException(wiredtiger.WiredTigerError, reverse,
+                            '/conflict with a prepared update/')
+                else:
+                    self.assertEqual(reverse(), 0)
+                    self.assertEqual((cursor.get_key(), cursor.get_value()), prefix[-1])
+                for _ in range(2):
+                    self.assertRaisesException(wiredtiger.WiredTigerError, step,
+                        '/conflict with a prepared update/')
+        else:
+            self.assertEqual(step(), wiredtiger.WT_NOTFOUND)
 
-        if self.commit_prepared:
+        if self.commit_ts is not None:
             prep_session.commit_transaction(
-                f'commit_timestamp={self.timestamp_str(350)},'
-                f'durable_timestamp={self.timestamp_str(350)}')
+                f'commit_timestamp={self.timestamp_str(self.commit_ts)},'
+                f'durable_timestamp={self.timestamp_str(self.commit_ts)}')
         else:
             prep_session.rollback_transaction()
+        if self.on_leader and not self.stepdown and self.commit_ts is not None:
+            self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(self.commit_ts)}')
 
-        # Continue the same cursor without resetting or repeating the prefix.
         suffix = []
-        for pair in expected[len(expected_prefix):]:
-            self.assertEqual(cursor.next(), 0)
-            suffix.append((cursor.get_key(), cursor.get_value()))
-            self.assertEqual(suffix[-1], pair)
-        self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
+        if self.read_ts >= 300:
+            for pair in expected[len(expected_prefix):]:
+                self.assertEqual(step(), 0)
+                suffix.append((cursor.get_key(), cursor.get_value()))
+                self.assertEqual(suffix[-1], pair)
+            self.assertEqual(step(), wiredtiger.WT_NOTFOUND)
         self.assertEqual(suffix, expected[len(expected_prefix):])
         self.assertEqual(prefix + suffix, expected)
 
+        for k in self.stable_keys:
+            cursor.set_key(k)
+            self.assertEqual(cursor.search(), 0 if k in visible else wiredtiger.WT_NOTFOUND)
+            if k in visible:
+                self.assertEqual((cursor.get_key(), cursor.get_value()), (k, visible[k]))
         cursor.close()
         iter_session.rollback_transaction()
+        prep_session.close()
+        iter_session.close()
         conn_follow.close()
+        if self.stepdown:
+            self.complete_step_down(step_down_ts)

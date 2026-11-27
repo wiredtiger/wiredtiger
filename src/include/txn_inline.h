@@ -2080,6 +2080,23 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 }
 
 /*
+ * __wt_txn_stepdown_ts_read --
+ *     Read the step-down timestamp under the step-down lock. Use this when the result decides
+ *     behavior, not just an early exit: the timestamp is set and cleared on every step-down, and
+ *     the lock keeps the read consistent with those changes.
+ */
+static WT_INLINE wt_timestamp_t
+__wt_txn_stepdown_ts_read(WT_SESSION_IMPL *session)
+{
+    wt_timestamp_t step_down_ts;
+
+    __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+    step_down_ts = __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+    __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+    return (step_down_ts);
+}
+
+/*
  * __wt_txn_stepdown_straddler_check --
  *     Setting the step-down timestamp announces a planned step-down: the stable constituent will be
  *     checkpointed at that timestamp, and everything committed after it must go to the ingest
@@ -2181,6 +2198,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     if (conf != NULL) {
         WT_ERR(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
         if (cval.len != 0) {
+            /* Claiming a prepare does not route its writes. */
             WT_ERR(__wt_txn_parse_prepared_id(session, &prepared_id, &cval));
             WT_ERR(__wt_txn_claim_prepared_txn(session, prepared_id));
             return (0);

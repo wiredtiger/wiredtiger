@@ -1009,6 +1009,7 @@ struct __wt_connection_stats {
     int64_t cursor_update_error;
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
+    int64_t cursor_write_exceeds_disagg_page_limit;
     int64_t cursor_reopen;
     int64_t cursor_next_raw_kv_batch_allocations;
     int64_t cursor_next_raw_kv_batch_requested;
@@ -1379,6 +1380,7 @@ struct __wt_connection_stats {
     int64_t rec_ingest_garbage_collection_keys_disk_image;
     int64_t rec_ingest_garbage_collection_keys_update_chain;
     int64_t rec_overflow_value;
+    int64_t rec_page_delta_rejected_chain_size;
     int64_t rec_page_delta_rejected_invalid_page_id;
     int64_t rec_page_delta_rejected_max_consecutive_exceeded;
     int64_t rec_page_delta_rejected_multiblock;
@@ -1904,6 +1906,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_update;
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
+    int64_t cursor_write_exceeds_disagg_page_limit;
     int64_t layered_curs_blind_remove_follower;
     int64_t layered_curs_blind_remove_ingest_deleted;
     int64_t layered_curs_insert;
@@ -1990,6 +1993,7 @@ struct __wt_dsrc_stats {
     int64_t rec_ingest_garbage_collection_keys_disk_image;
     int64_t rec_ingest_garbage_collection_keys_update_chain;
     int64_t rec_overflow_value;
+    int64_t rec_page_delta_rejected_chain_size;
     int64_t rec_page_delta_rejected_invalid_page_id;
     int64_t rec_page_delta_rejected_max_consecutive_exceeded;
     int64_t rec_page_delta_rejected_multiblock;
