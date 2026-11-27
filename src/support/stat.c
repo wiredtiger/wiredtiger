@@ -357,6 +357,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update calls",
   "cursor: update key and value bytes",
   "cursor: update value size change",
+  "cursor: writes rejected for exceeding the maximum disaggregated page size",
   "layered: Layered table cursor blind remove operations on a follower",
   "layered: Layered table cursor blind remove operations on a key already removed locally",
   "layered: Layered table cursor insert operations",
@@ -448,6 +449,8 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: number of keys that are garbage collected from the update chains in the ingest "
   "btrees for disaggregated storage",
   "reconciliation: overflow values written",
+  "reconciliation: page deltas rejected because the delta chain would be larger than the maximum "
+  "disaggregated write size",
   "reconciliation: page deltas rejected due to invalid page ID",
   "reconciliation: page deltas rejected due to max consecutive limit",
   "reconciliation: page deltas rejected due to multiblock reconciliation",
@@ -869,6 +872,7 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_CURSOR_UPDATE,
   WT_STAT_DSRC_CURSOR_UPDATE_BYTES,
   WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED,
+  WT_STAT_DSRC_CURSOR_WRITE_EXCEEDS_DISAGG_PAGE_LIMIT,
   WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_FOLLOWER,
   WT_STAT_DSRC_LAYERED_CURS_BLIND_REMOVE_INGEST_DELETED,
   WT_STAT_DSRC_LAYERED_CURS_INSERT,
@@ -955,6 +959,7 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE,
   WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN,
   WT_STAT_DSRC_REC_OVERFLOW_VALUE,
+  WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_CHAIN_SIZE,
   WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID,
   WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED,
   WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MULTIBLOCK,
@@ -1422,6 +1427,7 @@ __stat_dsrc_clear_none(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
+    stats->cursor_write_exceeds_disagg_page_limit = 0;
     stats->layered_curs_blind_remove_follower = 0;
     stats->layered_curs_blind_remove_ingest_deleted = 0;
     stats->layered_curs_insert = 0;
@@ -1508,6 +1514,7 @@ __stat_dsrc_clear_none(WT_DSRC_STATS *stats)
     stats->rec_ingest_garbage_collection_keys_disk_image = 0;
     stats->rec_ingest_garbage_collection_keys_update_chain = 0;
     stats->rec_overflow_value = 0;
+    stats->rec_page_delta_rejected_chain_size = 0;
     stats->rec_page_delta_rejected_invalid_page_id = 0;
     stats->rec_page_delta_rejected_max_consecutive_exceeded = 0;
     stats->rec_page_delta_rejected_multiblock = 0;
@@ -1985,6 +1992,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
+    to->cursor_write_exceeds_disagg_page_limit += from->cursor_write_exceeds_disagg_page_limit;
     to->layered_curs_blind_remove_follower += from->layered_curs_blind_remove_follower;
     to->layered_curs_blind_remove_ingest_deleted += from->layered_curs_blind_remove_ingest_deleted;
     to->layered_curs_insert += from->layered_curs_insert;
@@ -2086,6 +2094,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_ingest_garbage_collection_keys_update_chain +=
       from->rec_ingest_garbage_collection_keys_update_chain;
     to->rec_overflow_value += from->rec_overflow_value;
+    to->rec_page_delta_rejected_chain_size += from->rec_page_delta_rejected_chain_size;
     to->rec_page_delta_rejected_invalid_page_id += from->rec_page_delta_rejected_invalid_page_id;
     to->rec_page_delta_rejected_max_consecutive_exceeded +=
       from->rec_page_delta_rejected_max_consecutive_exceeded;
@@ -2587,6 +2596,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
+    to->cursor_write_exceeds_disagg_page_limit +=
+      WT_STAT_DSRC_READ(from, cursor_write_exceeds_disagg_page_limit);
     to->layered_curs_blind_remove_follower +=
       WT_STAT_DSRC_READ(from, layered_curs_blind_remove_follower);
     to->layered_curs_blind_remove_ingest_deleted +=
@@ -2711,6 +2722,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_ingest_garbage_collection_keys_update_chain +=
       WT_STAT_DSRC_READ(from, rec_ingest_garbage_collection_keys_update_chain);
     to->rec_overflow_value += WT_STAT_DSRC_READ(from, rec_overflow_value);
+    to->rec_page_delta_rejected_chain_size +=
+      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_chain_size);
     to->rec_page_delta_rejected_invalid_page_id +=
       WT_STAT_DSRC_READ(from, rec_page_delta_rejected_invalid_page_id);
     to->rec_page_delta_rejected_max_consecutive_exceeded +=
@@ -3428,6 +3441,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor update calls that return an error",
   "cursor: cursor update key and value bytes",
   "cursor: cursor update value size change",
+  "cursor: cursor writes rejected for exceeding the maximum disaggregated page size",
   "cursor: cursors reused from cache",
   "cursor: number of memory allocations performed in service of cursor next raw key value batch",
   "cursor: number of results requested by callers of cursor next raw key value batch",
@@ -3807,6 +3821,8 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: number of keys that are garbage collected from the update chains in the ingest "
   "btrees for disaggregated storage",
   "reconciliation: overflow values written",
+  "reconciliation: page deltas rejected because the delta chain would be larger than the maximum "
+  "disaggregated write size",
   "reconciliation: page deltas rejected due to invalid page ID",
   "reconciliation: page deltas rejected due to max consecutive limit",
   "reconciliation: page deltas rejected due to multiblock reconciliation",
@@ -4615,6 +4631,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_CURSOR_UPDATE_ERROR,
   WT_STAT_CONN_CURSOR_UPDATE_BYTES,
   WT_STAT_CONN_CURSOR_UPDATE_BYTES_CHANGED,
+  WT_STAT_CONN_CURSOR_WRITE_EXCEEDS_DISAGG_PAGE_LIMIT,
   WT_STAT_CONN_CURSOR_REOPEN,
   WT_STAT_CONN_CURSOR_NEXT_RAW_KV_BATCH_ALLOCATIONS,
   WT_STAT_CONN_CURSOR_NEXT_RAW_KV_BATCH_REQUESTED,
@@ -4970,6 +4987,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE,
   WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN,
   WT_STAT_CONN_REC_OVERFLOW_VALUE,
+  WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_CHAIN_SIZE,
   WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID,
   WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED,
   WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MULTIBLOCK,
@@ -5822,6 +5840,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->cursor_update_error = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
+    stats->cursor_write_exceeds_disagg_page_limit = 0;
     stats->cursor_reopen = 0;
     stats->cursor_next_raw_kv_batch_allocations = 0;
     stats->cursor_next_raw_kv_batch_requested = 0;
@@ -6177,6 +6196,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->rec_ingest_garbage_collection_keys_disk_image = 0;
     stats->rec_ingest_garbage_collection_keys_update_chain = 0;
     stats->rec_overflow_value = 0;
+    stats->rec_page_delta_rejected_chain_size = 0;
     stats->rec_page_delta_rejected_invalid_page_id = 0;
     stats->rec_page_delta_rejected_max_consecutive_exceeded = 0;
     stats->rec_page_delta_rejected_multiblock = 0;
@@ -7151,6 +7171,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_update_error += WT_STAT_CONN_READ(from, cursor_update_error);
     to->cursor_update_bytes += WT_STAT_CONN_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_CONN_READ(from, cursor_update_bytes_changed);
+    to->cursor_write_exceeds_disagg_page_limit +=
+      WT_STAT_CONN_READ(from, cursor_write_exceeds_disagg_page_limit);
     to->cursor_reopen += WT_STAT_CONN_READ(from, cursor_reopen);
     to->cursor_next_raw_kv_batch_allocations +=
       WT_STAT_CONN_READ(from, cursor_next_raw_kv_batch_allocations);
@@ -7674,6 +7696,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_ingest_garbage_collection_keys_update_chain +=
       WT_STAT_CONN_READ(from, rec_ingest_garbage_collection_keys_update_chain);
     to->rec_overflow_value += WT_STAT_CONN_READ(from, rec_overflow_value);
+    to->rec_page_delta_rejected_chain_size +=
+      WT_STAT_CONN_READ(from, rec_page_delta_rejected_chain_size);
     to->rec_page_delta_rejected_invalid_page_id +=
       WT_STAT_CONN_READ(from, rec_page_delta_rejected_invalid_page_id);
     to->rec_page_delta_rejected_max_consecutive_exceeded +=
