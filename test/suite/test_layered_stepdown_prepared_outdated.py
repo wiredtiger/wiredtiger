@@ -41,16 +41,19 @@ class test_layered_stepdown_prepared_outdated(LayeredStepdownMixin, wttest.Wired
     uri = 'layered:test_layered_stepdown_prepared_outdated'
     nitems = 5000
     timeout = 60
+    eviction_relaxed = 'eviction_dirty_target=200MB,eviction_updates_target=200MB'
+    eviction_pressure = 'eviction_dirty_target=1MB,eviction_updates_target=1MB'
 
-    # Eviction targets are far above the prepared content until the test lowers them after the
-    # step-down, so the leader never evicts the prepared pages.
+    # Eviction only targets the prepared content while the test applies pressure.
     def conn_config(self):
-        return 'statistics=(all),cache_size=1GB,' \
-            'eviction_dirty_target=200MB,eviction_dirty_trigger=500MB,' \
-            'eviction_updates_target=200MB,eviction_updates_trigger=500MB,' \
+        return 'statistics=(all),cache_size=1GB,' + self.eviction_relaxed + ',' \
+            'eviction_dirty_trigger=500MB,eviction_updates_trigger=500MB,' \
             'debug_mode=(disagg_stepdown_prepare=true),' \
             'file_manager=(close_scan_interval=1,close_idle_time=1),' \
             'disaggregated=(role="leader")'
+
+    def dirty_stable(self):
+        return self.get_stat(wiredtiger.stat.conn.cache_bytes_dirty_stable)
 
     def test_prepared_pages_survive_step_down(self):
         self.set_global_ts(1, 1)
@@ -66,31 +69,32 @@ class test_layered_stepdown_prepared_outdated(LayeredStepdownMixin, wttest.Wired
         for i in range(self.nitems):
             cursor[f'key{i:06d}'] = 'p' * 1024
         cursor.close()
-        prepare_session.prepare_transaction(
-            'prepare_timestamp=' + self.timestamp_str(20) + ',prepared_id=' + self.prepared_id_str(1))
-
-        baseline = self.get_stat(wiredtiger.stat.conn.cache_bytes_dirty_stable)
-        self.assertGreater(baseline, 0)
+        prepare_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20) +
+            ',prepared_id=' + self.prepared_id_str(1))
 
         self.conn.reconfigure('disaggregated=(role="follower")')
+        baseline = self.dirty_stable()
+        self.assertGreater(baseline, 0)
 
-        # Put the outdated tree under eviction pressure, well below the triggers so application
-        # threads never stall, and wait for both eviction and sweep to visit it.
-        skips = self.get_stat(wiredtiger.stat.conn.eviction_server_skip_stale_disagg_pages)
+        # The stat covers every stable tree, so compare against half the baseline rather than all
+        # of it: small changes elsewhere stay well within the margin, while discarding the outdated
+        # tree's pages takes almost all of the baseline with it.
+        threshold = baseline // 2
+
+        # Nothing can write an outdated tree, so a large drop in its dirty content means its pages
+        # were discarded. Hold eviction pressure for a full sweep pass: a sweep pass counts itself
+        # as it starts, so two new passes mean one has finished.
         sweeps = self.get_stat(wiredtiger.stat.conn.dh_sweeps)
-        self.conn.reconfigure('eviction_dirty_target=1MB,eviction_updates_target=1MB')
+        self.conn.reconfigure(self.eviction_pressure)
         deadline = time.time() + self.timeout
-        while True:
-            # A sweep pass counts itself as it starts, so two new passes mean one has finished.
-            visited = \
-                self.get_stat(wiredtiger.stat.conn.eviction_server_skip_stale_disagg_pages) > skips \
-                and self.get_stat(wiredtiger.stat.conn.dh_sweeps) >= sweeps + 2
-            self.assertGreaterEqual(self.get_stat(wiredtiger.stat.conn.cache_bytes_dirty_stable),
-                baseline, 'outdated tree discarded while a prepared transaction holds it')
-            if visited:
-                break
-            self.assertLess(time.time(), deadline, 'eviction and sweep did not visit the tree')
+        while self.get_stat(wiredtiger.stat.conn.dh_sweeps) < sweeps + 2:
+            self.assertGreater(self.dirty_stable(), threshold,
+                'outdated tree discarded while a prepared transaction holds it')
+            self.assertLess(time.time(), deadline, 'sweep did not run')
             time.sleep(0.1)
+        self.assertGreater(self.dirty_stable(), threshold,
+            'outdated tree discarded while a prepared transaction holds it')
+        self.conn.reconfigure(self.eviction_relaxed)
 
         # FIXME-WT-19187: a follower cannot yet resolve a prepared update on the outdated stable
         # tree. Once it can, require the rollback to succeed.
@@ -100,7 +104,8 @@ class test_layered_stepdown_prepared_outdated(LayeredStepdownMixin, wttest.Wired
             self.assertEqual(prepare_session.get_last_error()[1], wiredtiger.WT_CONFLICT_DISAGG)
         prepare_session.close()
 
+        # With the transaction gone, sweep closes the outdated tree and discards its pages.
         deadline = time.time() + self.timeout
-        while self.get_stat(wiredtiger.stat.conn.cache_bytes_dirty_stable) >= baseline:
+        while self.dirty_stable() > threshold:
             self.assertLess(time.time(), deadline, 'outdated tree was not discarded')
             time.sleep(0.5)
