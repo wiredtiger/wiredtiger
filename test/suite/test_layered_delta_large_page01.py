@@ -31,9 +31,8 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# A leaf page that grew past the size reconciliation builds pages to because of a large value is
-# always written in full, even when a small change to it would otherwise produce a small delta. With
-# compression, pages are built larger than the maximum page size and still get deltas.
+# A leaf page that is larger than the maximum page size before compression is always written in
+# full, even when a small change to it would otherwise produce a small delta.
 @disagg_test_class
 class test_layered_delta_large_page01(wttest.WiredTigerTestCase):
 
@@ -52,9 +51,12 @@ class test_layered_delta_large_page01(wttest.WiredTigerTestCase):
             leaf_page_max=4096)),
         ('normal', dict(nkeys=30, large_value_size=0, expect_delta=True, compressor='none',
             leaf_page_max=4096)),
-        # Compressible rows that take a page past the maximum page size before compression.
-        ('compressed', dict(nkeys=600, large_value_size=0, expect_delta=True, compressor='snappy',
-            leaf_page_max=32768)),
+        # Compressible rows that stay under the maximum page size before compression, and rows
+        # that take the page past it, although they compress to well under it.
+        ('compressed_small', dict(nkeys=200, large_value_size=0, expect_delta=True,
+            compressor='snappy', leaf_page_max=32768)),
+        ('compressed_large', dict(nkeys=600, large_value_size=0, expect_delta=False,
+            compressor='snappy', leaf_page_max=32768)),
     ]
     scenarios = make_scenarios(disagg_storages, page_sizes)
 

@@ -2857,11 +2857,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                 skip_write = true;
             else if (delta_enabled) {
                 /*
-                 * A page that grew past the size reconciliation builds pages to (the maximum page
-                 * size, adjusted for compression) because of a large item is always written in
-                 * full, so a page together with its deltas stays within the page log message size.
+                 * A page that is larger than the maximum page size before compression is always
+                 * written in full, so a page together with its deltas stays within the page log
+                 * message size.
                  */
-                if (chunk->image.size > r->page_size)
+                if (chunk->image.size >
+                  (WT_PAGE_IS_INTERNAL(page) ? btree->maxintlpage : btree->maxleafpage))
                     WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_large_page);
                 else if (block_meta->delta_count < conn->page_delta.max_consecutive_delta) {
                     WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
