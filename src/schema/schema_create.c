@@ -1166,7 +1166,12 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      * stripped out.
      */
     WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
-    WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
+    /*
+     * The ingest btree is in-memory, so a newly created one has nothing to check. On a leader skip
+     * opening it, the first real open creates it.
+     */
+    WT_ERR(__wt_schema_create_internal(session, ingest_uri, constituent_cfg,
+      !__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)));
     __wt_free(session, constituent_cfg);
 
     /* Build the stable constituent configuration for a later step-up. */
