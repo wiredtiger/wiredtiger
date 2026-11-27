@@ -2392,11 +2392,7 @@ __disagg_assert_no_active_writes_callback(
     WT_UNUSED(exit_walkp);
     WT_UNUSED(cookiep);
 
-    /*
-     * FIXME-WT-18723: remove this bypass once prepared transactions are supported across a
-     * step-down. A prepared transaction from before the step-down timestamp was set keeps mod_count
-     * nonzero until it resolves, and is exactly the case this flag exists to exercise.
-     */
+    /* FIXME-WT-18723: Remove the test bypass once the remaining fixtures no longer need it. */
     if (!FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE))
         WT_ASSERT_ALWAYS(session, txn_session->txn->mod_count == 0,
           "application write transaction is active during disaggregated step-down");

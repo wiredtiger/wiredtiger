@@ -38,13 +38,11 @@ from wtscenario import make_scenarios
 # must report the conflict and then resume from where it stopped once the conflict is resolved.
 @disagg_test_class
 class test_layered_async_stepdown16(LayeredStepdownMixin, wttest.WiredTigerTestCase):
-    conn_base_config = 'statistics=(all),precise_checkpoint=true,' \
-        'debug_mode=(disagg_stepdown_prepare=true),'
+    conn_base_config = 'statistics=(all),precise_checkpoint=true,'
 
     # Where the blocking prepared update lives. Content written before the step-down timestamp is
     # announced goes to the stable constituent; content written after it goes to ingest.
     prepare_targets = [
-        # Prepared transactions that straddle the announcement cannot commit.
         ('prepare_on_stable_rollback', dict(prepare_before_step_down=True, commit_prepared=False)),
         ('prepare_on_ingest_rollback', dict(prepare_before_step_down=False, commit_prepared=False)),
         ('prepare_on_ingest_commit', dict(prepare_before_step_down=False, commit_prepared=True)),

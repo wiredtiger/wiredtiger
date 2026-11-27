@@ -2033,9 +2033,11 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_TXN *txn;
+    wt_timestamp_t step_down_ts;
 
     session = (WT_SESSION_IMPL *)wt_session;
     txn = session->txn;
+    step_down_ts = WT_TS_NONE;
     SESSION_API_CALL_PREPARE_ALLOWED(session, commit_transaction, config, cfg, false);
     WT_STAT_CONN_INCR(session, txn_commit);
 
@@ -2052,30 +2054,15 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
           F_ISSET(txn, WT_TXN_PREPARE) ? "prepared " : "");
 
     /*
-     * The step-down rollback below cannot apply to a prepared transaction: failing a prepared
-     * commit fails the system. Catch a transaction that prepared before the timestamp was set with
-     * a clear message instead.
-     *
-     * FIXME-WT-18723: remove this bypass once prepared transactions are supported across a
-     * step-down.
+     * Cursor checks can reject an unprepared straddler early. Check again under the step-down lock,
+     * and pass the timestamp to commit so it can copy a prepared straddler's writes to ingest.
      */
-    if (!FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE))
-        WT_ASSERT_ALWAYS(session,
-          !F_ISSET(txn, WT_TXN_PREPARE) ||
-            __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) ==
-              WT_TS_NONE,
-          "prepared transactions are not supported while the step-down timestamp is set");
-
-    /*
-     * The straddler checks at cursor operations are only an optimization to roll back early: they
-     * read the step-down timestamp without taking the step-down lock and may miss it even when it
-     * is set. This check is the guarantee: under the step-down lock it always observes a set
-     * timestamp, so no straddler commits after the timestamp is in place.
-     */
-    if (txn->mod_count != 0 && !F_ISSET(txn, WT_TXN_STEPDOWN_TS_SET) &&
-      __wt_conn_is_disagg(session)) {
+    if (txn->mod_count != 0 && __wt_conn_is_disagg(session)) {
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        ret = __wt_txn_stepdown_straddler_check(session, true);
+        step_down_ts =
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        if (!F_ISSET(txn, WT_TXN_STEPDOWN_TS_SET | WT_TXN_PREPARE))
+            ret = __wt_txn_stepdown_straddler_check(session, true);
         __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
         WT_ERR(ret);
     }
@@ -2088,7 +2075,7 @@ err:
      */
     if (ret == 0) {
         F_SET(session, WT_SESSION_RESOLVING_TXN);
-        ret = __wt_txn_commit(session, cfg);
+        ret = __wt_txn_commit(session, cfg, step_down_ts);
         F_CLR(session, WT_SESSION_RESOLVING_TXN);
     } else if (F_ISSET(txn, WT_TXN_RUNNING)) {
         if (F_ISSET(txn, WT_TXN_PREPARE))
@@ -2096,7 +2083,7 @@ err:
 
         WT_TRET(__wt_session_reset_cursors(session, false));
         F_SET(session, WT_SESSION_RESOLVING_TXN);
-        WT_TRET(__wt_txn_rollback(session, cfg, false));
+        WT_TRET(__wt_txn_rollback(session, cfg, false, step_down_ts));
         F_CLR(session, WT_SESSION_RESOLVING_TXN);
     }
 #ifdef HAVE_CALL_LOG
@@ -2133,13 +2120,28 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    WT_TXN *txn;
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, ret, prepare_transaction, config, cfg, true);
+    txn = session->txn;
     WT_STAT_CONN_INCR(session, txn_prepare);
     WT_STAT_CONN_INCR(session, txn_prepare_active);
 
     WT_ERR(__wt_txn_context_check(session, true));
+
+    /*
+     * Reject straddlers before prepare, while the application can still retry them.
+     *
+     * FIXME-WT-18723: Remove the test bypass once the remaining fixtures no longer need it.
+     */
+    if (txn->mod_count != 0 && __wt_conn_is_disagg(session) &&
+      !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE)) {
+        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+        ret = __wt_txn_stepdown_straddler_check(session, true);
+        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+        WT_ERR(ret);
+    }
 
     F_SET(session, WT_SESSION_RESOLVING_TXN);
     WT_ERR(__wt_txn_prepare(session, cfg));
@@ -2182,12 +2184,14 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_TXN *txn;
+    wt_timestamp_t step_down_ts;
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_PREPARE_ALLOWED(session, rollback_transaction, config, cfg, false);
     WT_STAT_CONN_INCR(session, txn_rollback);
 
     txn = session->txn;
+    step_down_ts = WT_TS_NONE;
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
         WT_STAT_CONN_INCR(session, txn_prepare_rollback);
         WT_STAT_CONN_DECR(session, txn_prepare_active);
@@ -2195,10 +2199,14 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 
     WT_ERR(__wt_txn_context_check(session, true));
 
+    /* Only a prepared rollback can require recording the outcome in ingest. */
+    if (F_ISSET(txn, WT_TXN_PREPARE) && __wt_conn_is_disagg(session))
+        step_down_ts = __wt_txn_stepdown_ts_read(session);
+
     WT_TRET(__wt_session_reset_cursors(session, false));
 
     F_SET(session, WT_SESSION_RESOLVING_TXN);
-    WT_TRET(__wt_txn_rollback(session, cfg, true));
+    WT_TRET(__wt_txn_rollback(session, cfg, true, step_down_ts));
     F_CLR(session, WT_SESSION_RESOLVING_TXN);
 
 err:

@@ -764,6 +764,8 @@ extern int __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype
   const char **tokstart, size_t *toklen) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_key_return(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_layered_derive_ingest_uri(WT_SESSION_IMPL *session, const char *stable_uri,
+  WT_ITEM *ingest_uri) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *session,
@@ -1187,7 +1189,7 @@ extern int __wt_turtle_validate_version(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_activity_drain(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
+extern int __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step_down_ts)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1225,8 +1227,8 @@ extern int __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool di
 extern int __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
   WT_TXN_TIME_POINT *txn_time_point, WT_ITEM *key, uint64_t recno, bool commit, WT_CURSOR **cursorp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call,
+  wt_timestamp_t step_down_ts) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_set_prepared_id(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_set_prepared_id_uint(WT_SESSION_IMPL *session, uint64_t prepared_id)
@@ -2752,6 +2754,8 @@ static WT_INLINE wt_timestamp_t __wt_get_stable_disaggregated_schema_epoch(WT_SE
 static WT_INLINE wt_timestamp_t __wt_get_stable_timestamp(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE wt_timestamp_t __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE wt_timestamp_t __wt_txn_stepdown_ts_read(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_get_page_modify_ta(WT_SESSION_IMPL *session, WT_PAGE *page,
   WT_TIME_AGGREGATE **ta) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

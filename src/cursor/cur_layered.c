@@ -3469,8 +3469,13 @@ __clayered_cell_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
     WT_TIME_WINDOW tw;
 
-    /* Ignore prepared updates, matching the leader. */
-    if (__wt_read_cell_time_window(cbt, &tw) && WT_TIME_WINDOW_HAS_PREPARE(&tw))
+    /*
+     * A stable checkpoint can still show a prepare that ingest has resolved. With mirroring off,
+     * check the live stable update chain even if the on-disk cell is prepared.
+     */
+    if ((F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING) ||
+          __wt_dhandle_shared_btree_kind(cbt->dhandle) != WT_SHARED_BTREE_LIVE) &&
+      __wt_read_cell_time_window(cbt, &tw) && WT_TIME_WINDOW_HAS_PREPARE(&tw))
         return (0);
 
     /* Ensure the pinned page is valid. */
