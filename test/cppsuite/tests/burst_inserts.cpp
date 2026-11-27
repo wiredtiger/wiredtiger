@@ -26,6 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <chrono>
+
 #include "src/common/random_generator.h"
 #include "src/main/test.h"
 

@@ -28,6 +28,8 @@
 
 #include "thread_manager.h"
 
+#include <chrono>
+
 #include "logger.h"
 
 namespace test_harness {

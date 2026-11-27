@@ -28,6 +28,8 @@
 
 #include "test.h"
 
+#include <chrono>
+
 #include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/component/metrics_writer.h"
