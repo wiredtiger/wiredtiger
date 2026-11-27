@@ -26,14 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# A prepared transaction left open across step-down keeps the outdated stable tree's dirty pages in
-# cache under eviction and sweep pressure, and the pages are discarded once the transaction ends.
-
 import time, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
+# A prepared transaction left open across step-down keeps the outdated stable tree's dirty pages in
+# cache under eviction and sweep pressure, and the pages are discarded once the transaction ends.
 @disagg_test_class
 class test_layered_stepdown_prepared_outdated(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages(disagg_only=True)
