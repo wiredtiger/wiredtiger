@@ -403,6 +403,11 @@ struct __wt_page_modify {
     /* Avoid checking for obsolete updates during checkpoints. */
     uint64_t obsolete_check_txn;
     wt_timestamp_t obsolete_check_timestamp;
+    /*
+     * If non-zero, the remaining number of updates to this page that may skip the obsolete check
+     * while the update recorded above is not globally visible (see __wt_update_obsolete_check).
+     */
+    uint32_t obsolete_check_skip;
 
     /* The largest transaction and timestamp seen on the page by a successful reconciliation. */
     uint64_t rec_max_txn;
