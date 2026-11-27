@@ -605,7 +605,10 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     replay_run_end(session);
 
-    if (lastrun) {
+    /* Only check the budget when there is another pass to start. */
+    if (!lastrun)
+        g.disk_budget_reached = disk_budget_check("operations pass");
+    if (lastrun || g.disk_budget_reached) {
         tinfo_teardown();
         if (g.transaction_timestamps_config && !GV(DISAGG_STEPDOWN_ASYNC))
             timestamp_teardown(session);

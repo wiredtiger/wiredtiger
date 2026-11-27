@@ -6,6 +6,7 @@ set(format_sources
     checksum.c
     compact.c
     config_compat.c
+    disk_budget.c
     follower.c
     format_config.c
     format_config_def.c
@@ -33,6 +34,7 @@ create_test_executable(test_format
     EXECUTABLE_NAME "t"
     ADDITIONAL_FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/CONFIG.stress
+        ${CMAKE_CURRENT_SOURCE_DIR}/disk_budget.sh
         ${CMAKE_CURRENT_SOURCE_DIR}/format.sh
         ${CMAKE_CURRENT_SOURCE_DIR}/format_disagg_multi.sh
         ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh
@@ -52,3 +54,8 @@ add_dependencies(test_format wiredtiger_ext)
 
 add_test(NAME test_format COMMAND ${CMAKE_CURRENT_BINARY_DIR}/smoke.sh)
 set_tests_properties(test_format PROPERTIES LABELS "check")
+
+if(UNIX)
+    add_test(NAME test_format_disk_budget COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/disk_budget_test.sh)
+    set_tests_properties(test_format_disk_budget PROPERTIES LABELS "check")
+endif()

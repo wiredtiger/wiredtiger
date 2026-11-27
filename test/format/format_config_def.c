@@ -350,6 +350,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     "default rollback_to_stable configuration",
     0x0, 0, RTS_THREADS_MAX, RTS_THREADS_MAX, V_GLOBAL_ROLLBACK_TO_STABLE_THREADS},
 
+  {"runs.disk_budget_mb", "soft disk budget for the run directory (MB, 0 for unlimited)", C_IGNORE,
+    0, 0, UINT_MAX, V_GLOBAL_RUNS_DISK_BUDGET_MB},
+
   {"runs.in_memory", "configure in-memory", C_BOOL | C_IGNORE, 0, 0, 1, V_GLOBAL_RUNS_IN_MEMORY},
 
   {"runs.mirror", "mirror tables", C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0, V_TABLE_RUNS_MIRROR},
