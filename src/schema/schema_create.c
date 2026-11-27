@@ -455,6 +455,14 @@ __create_file(
     if (session->import_list == NULL && import)
         __wt_btree_disable_bulk(session);
 
+    /*
+     * The open above only checked the new ingest table was set up correctly. On a leader, close it
+     * when released instead of leaving it for the sweep server, the first real open reopens it.
+     */
+    if (!import && WT_URI_IS_INGEST(uri) &&
+      __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
+        F_SET(session->dhandle, WT_DHANDLE_DISCARD);
+
     if (WT_META_TRACKING(session))
         WT_ERR(__wt_meta_track_handle_lock(session, true));
     else
