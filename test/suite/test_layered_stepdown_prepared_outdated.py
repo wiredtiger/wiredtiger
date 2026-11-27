@@ -46,7 +46,7 @@ class test_layered_stepdown_prepared_outdated(LayeredStepdownMixin, wttest.Wired
     # Eviction targets are far above the prepared content until the test lowers them after the
     # step-down, so the leader never evicts the prepared pages.
     def conn_config(self):
-        return 'statistics=(all),precise_checkpoint=true,cache_size=1GB,' \
+        return 'statistics=(all),cache_size=1GB,' \
             'eviction_dirty_target=200MB,eviction_dirty_trigger=500MB,' \
             'eviction_updates_target=200MB,eviction_updates_trigger=500MB,' \
             'debug_mode=(disagg_stepdown_prepare=true),' \
@@ -82,10 +82,13 @@ class test_layered_stepdown_prepared_outdated(LayeredStepdownMixin, wttest.Wired
         self.conn.reconfigure('eviction_dirty_target=1MB,eviction_updates_target=1MB')
         deadline = time.time() + self.timeout
         while True:
+            # A sweep pass counts itself as it starts, so two new passes mean one has finished.
+            visited = \
+                self.get_stat(wiredtiger.stat.conn.eviction_server_skip_stale_disagg_pages) > skips \
+                and self.get_stat(wiredtiger.stat.conn.dh_sweeps) >= sweeps + 2
             self.assertGreaterEqual(self.get_stat(wiredtiger.stat.conn.cache_bytes_dirty_stable),
                 baseline, 'outdated tree discarded while a prepared transaction holds it')
-            if self.get_stat(wiredtiger.stat.conn.eviction_server_skip_stale_disagg_pages) > skips \
-              and self.get_stat(wiredtiger.stat.conn.dh_sweeps) >= sweeps + 3:
+            if visited:
                 break
             self.assertLess(time.time(), deadline, 'eviction and sweep did not visit the tree')
             time.sleep(0.1)
