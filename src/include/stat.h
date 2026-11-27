@@ -906,6 +906,7 @@ struct __wt_connection_stats {
     int64_t cond_auto_wait;
     int64_t cond_auto_wait_skipped;
     int64_t btree_open;
+    int64_t btree_dsrc_stats;
     int64_t cond_signal_n_signals;
     int64_t cond_signal_n_broadcast;
     int64_t time_travel;

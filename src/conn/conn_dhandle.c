@@ -172,6 +172,8 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
     __wt_free(session, dhandle->checkpoint);
     __conn_dhandle_config_clear(session);
     __wt_spin_destroy(session, &dhandle->close_lock);
+    if (dhandle->stat_array != NULL)
+        WT_STAT_CONN_DECR(session, btree_dsrc_stats);
     __wt_stat_dsrc_discard(session, dhandle);
     __wt_overwrite_and_free(session, dhandle);
     return (ret);
@@ -700,8 +702,10 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
          */
         if (dhandle->stat_array == NULL &&
           (FLD_ISSET(S2C(session)->stat_flags, WT_STAT_TYPE_ALL) ||
-            F_ISSET(S2C(session), WT_CONN_IN_MEMORY)))
+            F_ISSET(S2C(session), WT_CONN_IN_MEMORY))) {
             WT_ERR(__wt_stat_dsrc_init(session, dhandle));
+            WT_STAT_CONN_INCR(session, btree_dsrc_stats);
+        }
 
         WT_ERR(__wt_btree_open(session, cfg));
         break;

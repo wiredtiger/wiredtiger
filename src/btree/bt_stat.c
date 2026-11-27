@@ -48,7 +48,9 @@ static int
 __stat_dsrc_alloc(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
 {
     WT_DECL_RET;
+    bool allocated;
 
+    allocated = false;
     if (handle->stat_array != NULL)
         return (0);
 
@@ -57,9 +59,13 @@ __stat_dsrc_alloc(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
      * so taking it here does not invert that order. Two statistics cursors can arrive together.
      */
     __wt_spin_lock(session, &handle->close_lock);
-    if (handle->stat_array == NULL)
+    if (handle->stat_array == NULL) {
         ret = __wt_stat_dsrc_init(session, handle);
+        allocated = ret == 0;
+    }
     __wt_spin_unlock(session, &handle->close_lock);
+    if (allocated)
+        WT_STAT_CONN_INCR(session, btree_dsrc_stats);
     return (ret);
 }
 

@@ -26,13 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import time
+
 import wttest
 from wiredtiger import stat
 
 # statistics=(fast) never allocates the per-data-source counter array. File size, free space and
 # the approximate leaf-page count are read from the block manager and the btree on each statistics
 # cursor. Diagnostic counters stay zero. statistics=(all) and an in-memory connection allocate the
-# array at open and count from the start.
+# array at open and count from the start. btree_dsrc_stats counts handles that hold the array.
 class stat21_base(wttest.WiredTigerTestCase):
     create_config = 'key_format=S,value_format=S,leaf_page_max=4KB'
 
@@ -60,6 +62,7 @@ class test_stat21(stat21_base):
     uri = 'table:test_stat21'
 
     def test_fast_defers_counters(self):
+        allocated = self.get_stat(stat.conn.btree_dsrc_stats)
         self.populate(self.uri, 10000)
         self.session.checkpoint()
         cursor = self.session.open_cursor(self.uri)
@@ -95,17 +98,34 @@ class test_stat21(stat21_base):
         self.assertGreater(self.get_stat(stat.conn.cursor_insert), conn_inserts)
         self.assertEqual(self.dsrc(self.uri, stat.dsrc.cursor_insert, 'statistics=(fast)'), 0)
         self.assertEqual(self.dsrc(self.uri, stat.dsrc.block_size, 'statistics=(fast)'), block_size)
+        self.assertEqual(self.get_stat(stat.conn.btree_dsrc_stats), allocated)
+
+        # The size-summary walk is the fast-connection path that does install the array.
+        size = self.session.open_cursor(self.uri, None, 'debug=(size_stats)')
+        size.close()
+        self.assertEqual(self.get_stat(stat.conn.btree_dsrc_stats), allocated + 1)
 
 @wttest.skip_for_hook("disagg", "layered tables do not share this btree and block manager")
 @wttest.skip_for_hook("tiered", "tiered storage does not use the local block-manager size")
 class test_stat21_all(stat21_base):
-    conn_config = 'statistics=(all)'
+    conn_config = 'statistics=(all),file_manager=(close_handle_minimum=0,close_scan_interval=1)'
 
     def test_all_counts_from_open(self):
         uri = 'table:test_stat21_all'
+        allocated = self.get_stat(stat.conn.btree_dsrc_stats)
         self.populate(uri, 10)
+        self.assertEqual(self.get_stat(stat.conn.btree_dsrc_stats), allocated + 1)
         self.assertGreater(self.get_stat(stat.dsrc.cursor_insert, uri), 0)
         self.assertGreater(self.get_stat(stat.dsrc.cursor_search, uri), 0)
+        self.session.checkpoint()
+        self.session.drop(uri, None)
+        self.session.close()
+        self.session = self.conn.open_session()
+        # Sweep destroys the handle, which frees the array.
+        deadline = time.time() + 10
+        while self.get_stat(stat.conn.btree_dsrc_stats) != allocated:
+            self.assertLess(time.time(), deadline, 'dropped btree still has data-source statistics')
+            time.sleep(0.1)
 
 
 @wttest.skip_for_hook("disagg", "in-memory is not a layered table")
@@ -115,7 +135,9 @@ class test_stat21_inmem(stat21_base):
 
     def test_in_memory_counts_from_open(self):
         uri = 'table:test_stat21_inmem'
+        allocated = self.get_stat(stat.conn.btree_dsrc_stats)
         self.populate(uri, 10)
+        self.assertEqual(self.get_stat(stat.conn.btree_dsrc_stats), allocated + 1)
         self.assertGreater(self.get_stat(stat.dsrc.cursor_insert, uri), 0)
         self.assertGreater(self.get_stat(stat.dsrc.cursor_insert_bytes, uri), 0)
         self.assertGreater(self.get_stat(stat.dsrc.cursor_search, uri), 0)

@@ -3335,6 +3335,7 @@ static const char *const __stats_connection_desc[] = {
   "connection: auto adjusting condition wait calls",
   "connection: auto adjusting condition wait raced to update timeout and skipped updating",
   "connection: btrees currently open",
+  "connection: btrees with data-source statistics currently allocated",
   "connection: condition wakes done as individual signals",
   "connection: counted condition wakes that fell back to a broadcast",
   "connection: detected system time went backwards",
@@ -4526,6 +4527,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_COND_AUTO_WAIT,
   WT_STAT_CONN_COND_AUTO_WAIT_SKIPPED,
   WT_STAT_CONN_BTREE_OPEN,
+  WT_STAT_CONN_BTREE_DSRC_STATS,
   WT_STAT_CONN_COND_SIGNAL_N_SIGNALS,
   WT_STAT_CONN_COND_SIGNAL_N_BROADCAST,
   WT_STAT_CONN_TIME_TRAVEL,
@@ -5738,6 +5740,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->cond_auto_wait = 0;
     stats->cond_auto_wait_skipped = 0;
     /* not clearing btree_open */
+    /* not clearing btree_dsrc_stats */
     stats->cond_signal_n_signals = 0;
     stats->cond_signal_n_broadcast = 0;
     stats->time_travel = 0;
@@ -7058,6 +7061,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cond_auto_wait += WT_STAT_CONN_READ(from, cond_auto_wait);
     to->cond_auto_wait_skipped += WT_STAT_CONN_READ(from, cond_auto_wait_skipped);
     to->btree_open += WT_STAT_CONN_READ(from, btree_open);
+    to->btree_dsrc_stats += WT_STAT_CONN_READ(from, btree_dsrc_stats);
     to->cond_signal_n_signals += WT_STAT_CONN_READ(from, cond_signal_n_signals);
     to->cond_signal_n_broadcast += WT_STAT_CONN_READ(from, cond_signal_n_broadcast);
     to->time_travel += WT_STAT_CONN_READ(from, time_travel);
