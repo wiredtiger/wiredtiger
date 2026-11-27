@@ -455,6 +455,20 @@ __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats)
     WT_STAT_WRITE(session, stats, block_reuse_bytes,
       (int64_t)(__wt_atomic_load_uint64_relaxed(&block->live.avail.bytes)));
     WT_STAT_WRITE(session, stats, block_size, block->size);
+    /*
+     * Compact progress is kept on the block. Copy it here so a statistics cursor opened after the
+     * data-source array was absent for the compaction still reports it.
+     */
+    WT_STAT_WRITE(session, stats, btree_compact_bytes_rewritten_expected,
+      (int64_t)block->compact_bytes_rewritten_expected);
+    WT_STAT_WRITE(
+      session, stats, btree_compact_pages_reviewed, (int64_t)block->compact_pages_reviewed);
+    WT_STAT_WRITE(
+      session, stats, btree_compact_pages_rewritten, (int64_t)block->compact_pages_rewritten);
+    WT_STAT_WRITE(session, stats, btree_compact_pages_rewritten_expected,
+      (int64_t)block->compact_pages_rewritten_expected);
+    WT_STAT_WRITE(
+      session, stats, btree_compact_pages_skipped, (int64_t)block->compact_pages_skipped);
 }
 
 /*

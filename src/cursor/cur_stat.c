@@ -479,7 +479,7 @@ __init_layered_constituent_stats(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 
     dhandle = session->dhandle;
 
-    if ((ret = __wt_btree_stat_init(session, cst)) == 0) {
+    if ((ret = __wt_btree_stat_init(session, cst)) == 0 && dhandle->stat_array != NULL) {
         __wt_stat_dsrc_aggregate(dhandle->stats, &cst->u.dsrc_stats);
         if (F_ISSET(cst, WT_STAT_CLEAR))
             __wt_stat_dsrc_clear_all(dhandle->stats, F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS));
@@ -786,11 +786,19 @@ __curstat_file_init(
      * Fill in the data source statistics, and copy them to the cursor. Optionally clear the data
      * source statistics.
      */
-    if ((ret = __wt_btree_stat_init(session, cst)) == 0) {
+    /*
+     * With no data-source array the init adds gauges straight into the cursor, which has to start
+     * at zero. Otherwise the values were written into the handle and are copied out here.
+     */
+    if (dhandle->stat_array == NULL)
         __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
-        __wt_stat_dsrc_aggregate(dhandle->stats, &cst->u.dsrc_stats);
-        if (F_ISSET(cst, WT_STAT_CLEAR))
-            __wt_stat_dsrc_clear_all(dhandle->stats, F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS));
+    if ((ret = __wt_btree_stat_init(session, cst)) == 0) {
+        if (dhandle->stat_array != NULL) {
+            __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
+            __wt_stat_dsrc_aggregate(dhandle->stats, &cst->u.dsrc_stats);
+            if (F_ISSET(cst, WT_STAT_CLEAR))
+                __wt_stat_dsrc_clear_all(dhandle->stats, F_MASK(cst, WT_STAT_OTEL_SUBSET_FLAGS));
+        }
         __wt_curstat_dsrc_final(cst);
     }
 

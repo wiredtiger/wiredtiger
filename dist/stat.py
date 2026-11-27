@@ -296,15 +296,21 @@ int
 __wt_stat_''' + name + '''_init(
     WT_SESSION_IMPL *session, ''' + handle + ''' *handle)
 {
+\tWT_''' + name.upper() + '''_STATS *array;
 \tint i;
 
-\tWT_RET(__wt_calloc(session, (size_t)WT_STAT_''' + capname + '''_COUNTER_SLOTS,
-\t    sizeof(*handle->stat_array), &handle->stat_array));
+\tWT_RET(__wt_calloc(
+\t  session, (size_t)WT_STAT_''' + capname + '''_COUNTER_SLOTS, sizeof(*array), &array));
 
+\t/*
+\t * Slot pointers go in before the array pointer. The hot path treats a non-NULL array pointer as
+\t * permission to index the slots.
+\t */
 \tfor (i = 0; i < WT_STAT_''' + capname + '''_COUNTER_SLOTS; ++i) {
-\t\thandle->stats[i] = &handle->stat_array[i];
+\t\thandle->stats[i] = &array[i];
 \t\t__wt_stat_''' + name + '''_init_single(handle->stats[i]);
 \t}
+\thandle->stat_array = array;
 \treturn (0);
 }
 

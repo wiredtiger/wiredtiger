@@ -692,8 +692,15 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
          * data handle because not all data handles need statistics (for example, handles used for
          * checkpoint locking). If we are reopening the handle, then it may already have statistics
          * memory, check to avoid the leak.
+         *
+         * statistics=(fast) does not allocate. A fast statistics cursor reads the live gauges into
+         * its own snapshot. statistics=(all) still allocates here. An in-memory connection does
+         * too: its index size is the cursor insert and remove counters, which have to count from
+         * open.
          */
-        if (dhandle->stat_array == NULL)
+        if (dhandle->stat_array == NULL &&
+          (FLD_ISSET(S2C(session)->stat_flags, WT_STAT_TYPE_ALL) ||
+            F_ISSET(S2C(session), WT_CONN_IN_MEMORY)))
             WT_ERR(__wt_stat_dsrc_init(session, dhandle));
 
         WT_ERR(__wt_btree_open(session, cfg));

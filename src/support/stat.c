@@ -1057,15 +1057,20 @@ __wt_stat_dsrc_init_single(WT_DSRC_STATS *stats)
 int
 __wt_stat_dsrc_init(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
 {
+    WT_DSRC_STATS *array;
     int i;
 
-    WT_RET(__wt_calloc(session, (size_t)WT_STAT_DSRC_COUNTER_SLOTS, sizeof(*handle->stat_array),
-      &handle->stat_array));
+    WT_RET(__wt_calloc(session, (size_t)WT_STAT_DSRC_COUNTER_SLOTS, sizeof(*array), &array));
 
+    /*
+     * Slot pointers go in before the array pointer. The hot path treats a non-NULL array pointer as
+     * permission to index the slots.
+     */
     for (i = 0; i < WT_STAT_DSRC_COUNTER_SLOTS; ++i) {
-        handle->stats[i] = &handle->stat_array[i];
+        handle->stats[i] = &array[i];
         __wt_stat_dsrc_init_single(handle->stats[i]);
     }
+    handle->stat_array = array;
     return (0);
 }
 
@@ -5193,15 +5198,20 @@ __wt_stat_connection_init_single(WT_CONNECTION_STATS *stats)
 int
 __wt_stat_connection_init(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *handle)
 {
+    WT_CONNECTION_STATS *array;
     int i;
 
-    WT_RET(__wt_calloc(session, (size_t)WT_STAT_CONN_COUNTER_SLOTS, sizeof(*handle->stat_array),
-      &handle->stat_array));
+    WT_RET(__wt_calloc(session, (size_t)WT_STAT_CONN_COUNTER_SLOTS, sizeof(*array), &array));
 
+    /*
+     * Slot pointers go in before the array pointer. The hot path treats a non-NULL array pointer as
+     * permission to index the slots.
+     */
     for (i = 0; i < WT_STAT_CONN_COUNTER_SLOTS; ++i) {
-        handle->stats[i] = &handle->stat_array[i];
+        handle->stats[i] = &array[i];
         __wt_stat_connection_init_single(handle->stats[i]);
     }
+    handle->stat_array = array;
     return (0);
 }
 
