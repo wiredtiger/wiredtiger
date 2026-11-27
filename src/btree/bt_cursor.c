@@ -215,10 +215,12 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
       (sizeof(WT_TIME_WINDOW) / sizeof(uint64_t)) * WT_INTPACK64_MAXSIZE)
 
 /*
- * The most the history store adds to a key and value when it saves an update: its key (btree ID,
- * the length of the user key, start timestamp and counter) and its value (stop timestamp, durable
- * timestamp and update type) pack seven more integers around them. The history store is written
- * without going through this check, so the item has to leave room for its own history store record.
+ * The most the history store adds to a key and value when it saves an update: the history store key
+ * (WT_HS_KEY_FORMAT, "IuQQ") has four packed integers around the user key (the btree ID, the user
+ * key's length, the start timestamp and a counter) and the history store value (WT_HS_VALUE_FORMAT,
+ * "QQQu") has three around the user value (the stop and durable timestamps and the update type),
+ * since the trailing "u" has no length. The history store is written without going through this
+ * check, so the item has to leave room for its own history store record.
  */
 #define WT_DISAGG_HS_RECORD_RESERVE (7 * WT_INTPACK64_MAXSIZE)
 
