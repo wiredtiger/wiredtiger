@@ -376,6 +376,7 @@ __wt_bm_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
     WT_ITEM *tmp, *ip;
     WT_PAGE_BLOCK_META block_meta_tmp;
     const WT_PAGE_HEADER *dsk;
+    uint64_t read_mem_size;
     uint32_t count, i;
     uint8_t type;
 
@@ -449,10 +450,7 @@ __wt_bm_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
         WT_STAT_DSRC_INCR(session, compress_read);
 
-    WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
-    WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
-    (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_read, dsk->mem_size);
-    __wt_cache_top_flow_incr(session, btree, WT_CACHE_TOP_READ, dsk->mem_size);
+    read_mem_size = dsk->mem_size;
 
     /* Decrypt. */
     if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
@@ -513,6 +511,7 @@ __wt_bm_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
             WT_STAT_CONN_INCRV(session, block_byte_read_intl_disk, ip->size);
         else
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
+        read_mem_size += ((const WT_PAGE_HEADER *)ip->data)->mem_size;
 
         if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED)) {
             WT_ERR(__wt_scr_alloc(session, 0, &etmp));
@@ -538,6 +537,12 @@ __wt_bm_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
         else
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf, ip->size);
     }
+
+    /* Count the base image and every delta, as block_byte_read does. */
+    WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, read_mem_size);
+    WT_STAT_SESSION_INCRV(session, bytes_read, read_mem_size);
+    (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_read, read_mem_size);
+    __wt_cache_top_flow_incr(session, btree, WT_CACHE_TOP_READ, read_mem_size);
 
     /* Finalize our return list. */
     WT_ERR(__wt_calloc_def(session, count, &tmp));
