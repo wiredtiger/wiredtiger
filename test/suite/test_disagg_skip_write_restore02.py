@@ -44,7 +44,7 @@ class test_disagg_skip_write_restore02(DisaggSizeTestMixin, wttest.WiredTigerTes
     conn_config = (
         'disaggregated=(role="leader",lose_all_my_data=true),'
         'cache_size=2GB,statistics=(all),precise_checkpoint=true,'
-        'page_delta=(delta_pct=1000,leaf_page_delta=true),checkpoint_threads=1'
+        'page_delta=(delta_pct=100,leaf_page_delta=true),checkpoint_threads=1'
     )
     uri = 'layered:' + uri_base
     # A small in-memory limit makes the append burst below cross the in-memory split

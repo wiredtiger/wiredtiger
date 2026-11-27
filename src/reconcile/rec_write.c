@@ -2865,8 +2865,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                  */
                 max_delta_page_size =
                   WT_MAX(WT_PAGE_IS_INTERNAL(page) ? btree->maxintlpage : btree->maxleafpage,
-                    (uint64_t)WT_BLOCK_DISAGG_MAX_WRITE_SIZE *
-                      (conn->page_delta.delta_pct < 100 ? 100 - conn->page_delta.delta_pct : 0) /
+                    (uint64_t)WT_BLOCK_DISAGG_MAX_WRITE_SIZE * (100 - conn->page_delta.delta_pct) /
                       100);
                 if (chunk->image.size > max_delta_page_size)
                     WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_large_page);

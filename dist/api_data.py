@@ -115,8 +115,7 @@ connection_page_delta_config_common = [
         is 20 bytes, and the size of the full page image is 100 bytes, reconciliation
         can emit a delta for the page (if various other preconditions are met).
         Conversely, if the delta came to 21 bytes, reconciliation would not emit a
-        delta. Deltas larger than full pages are permitted for measurement and testing
-        reasons, and may be disallowed in future.''', min='1', max='1000', type='int', undoc=True),
+        delta.''', min='1', max='100', type='int', undoc=True),
     Config('delta_pct_of_target_page_size', 'true', r'''
         When enabled, the \c delta_pct threshold is evaluated against the configured
         maximum page size for the page type rather than the size of the full page image

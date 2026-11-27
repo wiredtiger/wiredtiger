@@ -569,8 +569,8 @@ static const uint8_t
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_page_delta_subconfigs[] = {
   {"delete_pct", "int", NULL, "min=1,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 313, 1,
     100, NULL},
-  {"delta_pct", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 309, 1,
-    1000, NULL},
+  {"delta_pct", "int", NULL, "min=1,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 309, 1,
+    100, NULL},
   {"delta_pct_of_target_page_size", "boolean", NULL, NULL, NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_BOOLEAN, 310, INT64_MIN, INT64_MAX, NULL},
   {"internal_page_delta", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
