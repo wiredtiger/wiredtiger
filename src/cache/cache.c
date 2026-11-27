@@ -72,6 +72,8 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     /* Use a common routine for run-time configuration options. */
     WT_RET(__wt_cache_config(session, cfg, false));
 
+    WT_RET(__wti_cache_top_init(session));
+
     /*
      * We get/set some values in the cache statistics (rather than have two copies), configure them.
      */
@@ -222,6 +224,8 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
 
     if (cache == NULL)
         return (0);
+
+    __wti_cache_top_destroy(session);
 
     /* The cache should be empty at this point.  Complain if not. */
     if (cache->pages_inmem != cache->pages_evicted)

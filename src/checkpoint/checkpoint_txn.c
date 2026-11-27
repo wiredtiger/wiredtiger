@@ -2025,6 +2025,12 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
           __wt_panic(session, ret, "checkpoint can not fail when flush_tier is enabled"));
     WT_ERR(ret);
 
+    /*
+     * Publish how much of the cache the largest tables hold. Nothing here needs the checkpoint
+     * lock, and it is held exclusively, so this waits until it has been dropped.
+     */
+    __wt_cache_top_stats_update(session);
+
     /* Trigger the checkpoint cleanup thread to remove the obsolete pages. */
     if (checkpoint_cleanup)
         __wt_checkpoint_cleanup_trigger(session);

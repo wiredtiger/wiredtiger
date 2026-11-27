@@ -111,6 +111,12 @@ struct __wt_cache_eviction_controls;
 typedef struct __wt_cache_eviction_controls WT_CACHE_EVICTION_CONTROLS;
 struct __wt_cache_pool;
 typedef struct __wt_cache_pool WT_CACHE_POOL;
+struct __wt_cache_top;
+typedef struct __wt_cache_top WT_CACHE_TOP;
+struct __wt_cache_top_array;
+typedef struct __wt_cache_top_array WT_CACHE_TOP_ARRAY;
+struct __wt_cache_top_entry;
+typedef struct __wt_cache_top_entry WT_CACHE_TOP_ENTRY;
 struct __wt_capacity;
 typedef struct __wt_capacity WT_CAPACITY;
 struct __wt_cell;
@@ -586,6 +592,7 @@ typedef uint64_t wt_timestamp_t;
 #include "block_cache.h"
 #include "block_chunkcache.h"
 #include "btmem.h"
+#include "cache_top.h" /* required by btree.h */
 #include "btree.h"
 #include "cache.h"
 #include "../evict/evict.h"
