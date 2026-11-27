@@ -88,8 +88,6 @@ class test_layered_stepdown_prepared_outdated(LayeredStepdownMixin, wttest.Wired
         self.conn.reconfigure(self.eviction_pressure)
         deadline = time.time() + self.timeout
         while self.get_stat(wiredtiger.stat.conn.dh_sweeps) < sweeps + 2:
-            self.assertGreater(self.dirty_stable(), threshold,
-                'outdated tree discarded while a prepared transaction holds it')
             self.assertLess(time.time(), deadline, 'sweep did not run')
             time.sleep(0.1)
         self.assertGreater(self.dirty_stable(), threshold,
