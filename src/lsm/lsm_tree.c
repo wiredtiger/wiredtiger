@@ -1287,6 +1287,19 @@ __wt_lsm_tree_worker(WT_SESSION_IMPL *session, const char *uri,
     else
         __wti_lsm_tree_readlock(session, lsm_tree);
     locked = true;
+    if (name_func != NULL) {
+        bool skip;
+
+        /*
+         * Report the tree's metadata entry while holding the tree lock: the entry describes the
+         * chunk array, and a merge installing between the two would report chunks that are no
+         * longer part of the tree.
+         */
+        skip = false;
+        WT_ERR(name_func(session, uri, &skip));
+        if (skip)
+            goto err;
+    }
     for (i = 0; i < lsm_tree->nchunks; i++) {
         chunk = lsm_tree->chunk[i];
         /*

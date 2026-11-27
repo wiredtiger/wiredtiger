@@ -451,3 +451,11 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_wt19185_lsm_backup_metadata_lock
+    SOURCES wt19185_lsm_backup_metadata_lock/main.c
+    DIR_NAME wt19185_lsm_backup_metadata_lock
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
