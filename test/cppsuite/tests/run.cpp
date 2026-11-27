@@ -136,9 +136,16 @@ run_test(const std::string &test_name, const std::string &config, const std::str
 
     if (test_name == "api_timing_benchmarks")
         api_timing_benchmarks(args).run();
-    else if (test_name == "api_instruction_count_benchmarks")
+    else if (test_name == "api_instruction_count_benchmarks") {
+#if defined(__linux__)
         api_instruction_count_benchmarks(args).run();
-    else if (test_name == "background_compact")
+#else
+        /* FIXME-WT-16144: Support instruction counters on platforms other than Linux. */
+        test_harness::logger::log_msg(
+          LOG_ERROR, "api_instruction_count_benchmarks requires Linux perf events.");
+        error_code = -1;
+#endif
+    } else if (test_name == "background_compact")
         background_compact(args).run();
     else if (test_name == "bounded_cursor_perf")
         bounded_cursor_perf(args).run();

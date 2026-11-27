@@ -28,6 +28,7 @@
 
 #include "logger.h"
 
+#include <chrono>
 #include <iostream>
 #include <sstream>
 #include <thread>

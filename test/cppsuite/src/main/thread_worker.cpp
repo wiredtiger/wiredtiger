@@ -28,6 +28,7 @@
 
 #include "thread_worker.h"
 
+#include <chrono>
 #include <thread>
 
 #include "src/common/constants.h"
