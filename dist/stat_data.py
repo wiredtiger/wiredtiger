@@ -1589,7 +1589,7 @@ conn_dsrc_stats = [
     RecStat('rec_page_delta_rejected_build_failed', 'page deltas rejected: build function returned false (disabled, in-memory split, or internal page constraints not met)'),
     RecStat('rec_page_delta_rejected_delete_threshold', 'page deltas rejected due to too many keys removed from the disk image'),
     RecStat('rec_page_delta_rejected_invalid_page_id', 'page deltas rejected due to invalid page ID'),
-    RecStat('rec_page_delta_rejected_large_page', 'page deltas rejected due to the page being larger than the maximum page size'),
+    RecStat('rec_page_delta_rejected_large_page', 'page deltas rejected because the page and a delta could be larger than the maximum disaggregated write size'),
     RecStat('rec_page_delta_rejected_max_consecutive_exceeded', 'page deltas rejected due to max consecutive limit'),
     RecStat('rec_page_delta_rejected_multiblock', 'page deltas rejected due to multiblock reconciliation'),
     RecStat('rec_page_delta_rejected_non_single_page', 'page deltas rejected due to non-single page in previous reconciliation'),

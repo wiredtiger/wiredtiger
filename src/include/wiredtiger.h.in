@@ -9037,24 +9037,24 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN	1945
 /*! reconciliation: overflow values written */
 #define	WT_STAT_CONN_REC_OVERFLOW_VALUE			1946
+/*!
+ * reconciliation: page deltas rejected because the page and a delta
+ * could be larger than the maximum disaggregated write size
+ */
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_LARGE_PAGE	1947
 /*! reconciliation: page deltas rejected due to invalid page ID */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	1947
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	1948
 /*! reconciliation: page deltas rejected due to max consecutive limit */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED	1948
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED	1949
 /*! reconciliation: page deltas rejected due to multiblock reconciliation */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	1949
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	1950
 /*!
  * reconciliation: page deltas rejected due to non-single page in
  * previous reconciliation
  */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	1950
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	1951
 /*! reconciliation: page deltas rejected due to size threshold */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	1951
-/*!
- * reconciliation: page deltas rejected due to the page being larger than
- * the maximum page size
- */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_LARGE_PAGE	1952
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	1952
 /*!
  * reconciliation: page deltas rejected due to too many keys removed from
  * the disk image
@@ -10849,24 +10849,24 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN	2417
 /*! reconciliation: overflow values written */
 #define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2418
+/*!
+ * reconciliation: page deltas rejected because the page and a delta
+ * could be larger than the maximum disaggregated write size
+ */
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_LARGE_PAGE	2419
 /*! reconciliation: page deltas rejected due to invalid page ID */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	2419
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	2420
 /*! reconciliation: page deltas rejected due to max consecutive limit */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED	2420
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED	2421
 /*! reconciliation: page deltas rejected due to multiblock reconciliation */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	2421
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	2422
 /*!
  * reconciliation: page deltas rejected due to non-single page in
  * previous reconciliation
  */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	2422
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	2423
 /*! reconciliation: page deltas rejected due to size threshold */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	2423
-/*!
- * reconciliation: page deltas rejected due to the page being larger than
- * the maximum page size
- */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_LARGE_PAGE	2424
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	2424
 /*!
  * reconciliation: page deltas rejected due to too many keys removed from
  * the disk image

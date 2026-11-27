@@ -2661,6 +2661,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_PAGE *page;
     WT_PAGE_BLOCK_META *block_meta;
     size_t addr_size, compressed_size, delta_base_size;
+    uint64_t max_delta_page_size;
     uint8_t addr[WT_ADDR_MAX_COOKIE];
     bool build_delta, delta_enabled, skip_write;
 #ifdef HAVE_DIAGNOSTIC
@@ -2857,12 +2858,17 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                 skip_write = true;
             else if (delta_enabled) {
                 /*
-                 * A page that is larger than the maximum page size before compression is always
-                 * written in full, so a page together with its deltas stays within the page log
-                 * message size.
+                 * A page together with a delta must fit in a single page log message, so a page is
+                 * written in full if a delta of the configured percentage of it could pass the
+                 * maximum write size. A page that is not larger than the maximum page size before
+                 * compression is always eligible for a delta.
                  */
-                if (chunk->image.size >
-                  (WT_PAGE_IS_INTERNAL(page) ? btree->maxintlpage : btree->maxleafpage))
+                max_delta_page_size =
+                  WT_MAX(WT_PAGE_IS_INTERNAL(page) ? btree->maxintlpage : btree->maxleafpage,
+                    (uint64_t)WT_BLOCK_DISAGG_MAX_WRITE_SIZE *
+                      (conn->page_delta.delta_pct < 100 ? 100 - conn->page_delta.delta_pct : 0) /
+                      100);
+                if (chunk->image.size > max_delta_page_size)
                     WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_large_page);
                 else if (block_meta->delta_count < conn->page_delta.max_consecutive_delta) {
                     WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));

@@ -606,6 +606,10 @@ static_assert(sizeof(WT_BLOCK_DISAGG_HEADER) == WT_BLOCK_DISAGG_HEADER_WRITE_SIZ
  * The largest block we will write to the page log. The page log carries each block in a single
  * message of at most 33MB (the page server's maximum message size), and the message holds more than
  * the block, so keep 1MB of headroom. Keep this below the page log's limit if that changes.
+ *
+ * Normal pages are far below this: MongoDB configures 16KB leaf and internal pages, so only a page
+ * built around a very large item, up to 16MB, comes near it. The limit is not meant to constrain
+ * other page sizes, and a page is not checked against it before compression.
  */
 #define WT_BLOCK_DISAGG_MAX_WRITE_SIZE (32 * WT_MEGABYTE)
 

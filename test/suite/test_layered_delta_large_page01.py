@@ -31,32 +31,37 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# A leaf page that is larger than the maximum page size before compression is always written in
-# full, even when a small change to it would otherwise produce a small delta.
+# A leaf page is written in full, even when a small change to it would otherwise produce a small
+# delta, if the page and a delta of delta_pct of it could pass the maximum disaggregated write size.
+# A page larger than the maximum page size but under that limit still gets deltas.
 @disagg_test_class
 class test_layered_delta_large_page01(wttest.WiredTigerTestCase):
 
     test_name = __qualname__
     uri = f'layered:{test_name}'
 
-    conn_base_config = 'cache_size=32MB,statistics=(all),'
+    conn_base_config = 'cache_size=1GB,statistics=(all),'
     conn_delta_config = 'disaggregated=(role="leader"),' \
-        'page_delta=(leaf_page_delta=true,internal_page_delta=false,delta_pct=50),'
+        'page_delta=(leaf_page_delta=true,internal_page_delta=false),'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     # The small rows of the large page stay under half of the split size, so the large value is
-    # added to the same page instead of starting a new one.
+    # added to the same page instead of starting a new one, and the memory page maximum keeps the
+    # page from splitting in memory. The write limit is 32MB, so with a
+    # delta_pct of 90 a page over 3.2MB is too large for a delta.
     page_sizes = [
-        ('large', dict(nkeys=10, large_value_size=40000, expect_delta=False, compressor='none',
-            leaf_page_max=4096)),
-        ('normal', dict(nkeys=30, large_value_size=0, expect_delta=True, compressor='none',
-            leaf_page_max=4096)),
+        ('over_limit', dict(nkeys=10, large_value_size=4 * 1024 * 1024, delta_pct=90,
+            expect_delta=False, compressor='none', leaf_page_max=4096)),
+        ('over_page_max', dict(nkeys=10, large_value_size=40000, delta_pct=50,
+            expect_delta=True, compressor='none', leaf_page_max=4096)),
+        ('normal', dict(nkeys=30, large_value_size=0, delta_pct=50, expect_delta=True,
+            compressor='none', leaf_page_max=4096)),
         # Compressible rows that stay under the maximum page size before compression, and rows
         # that take the page past it, although they compress to well under it.
-        ('compressed_small', dict(nkeys=200, large_value_size=0, expect_delta=True,
+        ('compressed_small', dict(nkeys=200, large_value_size=0, delta_pct=50, expect_delta=True,
             compressor='snappy', leaf_page_max=32768)),
-        ('compressed_large', dict(nkeys=600, large_value_size=0, expect_delta=False,
-            compressor='snappy', leaf_page_max=32768)),
+        ('compressed_over_page_max', dict(nkeys=600, large_value_size=0, delta_pct=50,
+            expect_delta=True, compressor='snappy', leaf_page_max=32768)),
     ]
     scenarios = make_scenarios(disagg_storages, page_sizes)
 
@@ -64,7 +69,7 @@ class test_layered_delta_large_page01(wttest.WiredTigerTestCase):
         return (
             'key_format=S,value_format=S,'
             f'allocation_size=4096,leaf_page_max={self.leaf_page_max},'
-            f'block_compressor={self.compressor},'
+            f'block_compressor={self.compressor},memory_page_max=64MB,'
             'block_manager=disagg'
         )
 
@@ -76,7 +81,8 @@ class test_layered_delta_large_page01(wttest.WiredTigerTestCase):
     VALUE_SIZE = 100
 
     def conn_config(self):
-        return self.conn_base_config + self.conn_delta_config
+        return (self.conn_base_config + self.conn_delta_config +
+            f'page_delta=(delta_pct={self.delta_pct}),')
 
     def make_key(self, i):
         return f'key{i:04d}'
