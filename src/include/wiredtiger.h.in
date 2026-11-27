@@ -9038,10 +9038,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! reconciliation: overflow values written */
 #define	WT_STAT_CONN_REC_OVERFLOW_VALUE			1946
 /*!
- * reconciliation: page deltas rejected because the page and a delta
- * could be larger than the maximum disaggregated write size
+ * reconciliation: page deltas rejected because the delta chain would be
+ * larger than the maximum disaggregated write size
  */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_LARGE_PAGE	1947
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_CHAIN_SIZE	1947
 /*! reconciliation: page deltas rejected due to invalid page ID */
 #define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	1948
 /*! reconciliation: page deltas rejected due to max consecutive limit */
@@ -10850,10 +10850,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! reconciliation: overflow values written */
 #define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2418
 /*!
- * reconciliation: page deltas rejected because the page and a delta
- * could be larger than the maximum disaggregated write size
+ * reconciliation: page deltas rejected because the delta chain would be
+ * larger than the maximum disaggregated write size
  */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_LARGE_PAGE	2419
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_CHAIN_SIZE	2419
 /*! reconciliation: page deltas rejected due to invalid page ID */
 #define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	2420
 /*! reconciliation: page deltas rejected due to max consecutive limit */

@@ -449,8 +449,8 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: number of keys that are garbage collected from the update chains in the ingest "
   "btrees for disaggregated storage",
   "reconciliation: overflow values written",
-  "reconciliation: page deltas rejected because the page and a delta could be larger than the "
-  "maximum disaggregated write size",
+  "reconciliation: page deltas rejected because the delta chain would be larger than the maximum "
+  "disaggregated write size",
   "reconciliation: page deltas rejected due to invalid page ID",
   "reconciliation: page deltas rejected due to max consecutive limit",
   "reconciliation: page deltas rejected due to multiblock reconciliation",
@@ -959,7 +959,7 @@ static const int __stats_dsrc_otel_none[] = {
   WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE,
   WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN,
   WT_STAT_DSRC_REC_OVERFLOW_VALUE,
-  WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_LARGE_PAGE,
+  WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_CHAIN_SIZE,
   WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID,
   WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED,
   WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MULTIBLOCK,
@@ -1514,7 +1514,7 @@ __stat_dsrc_clear_none(WT_DSRC_STATS *stats)
     stats->rec_ingest_garbage_collection_keys_disk_image = 0;
     stats->rec_ingest_garbage_collection_keys_update_chain = 0;
     stats->rec_overflow_value = 0;
-    stats->rec_page_delta_rejected_large_page = 0;
+    stats->rec_page_delta_rejected_chain_size = 0;
     stats->rec_page_delta_rejected_invalid_page_id = 0;
     stats->rec_page_delta_rejected_max_consecutive_exceeded = 0;
     stats->rec_page_delta_rejected_multiblock = 0;
@@ -2094,7 +2094,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_ingest_garbage_collection_keys_update_chain +=
       from->rec_ingest_garbage_collection_keys_update_chain;
     to->rec_overflow_value += from->rec_overflow_value;
-    to->rec_page_delta_rejected_large_page += from->rec_page_delta_rejected_large_page;
+    to->rec_page_delta_rejected_chain_size += from->rec_page_delta_rejected_chain_size;
     to->rec_page_delta_rejected_invalid_page_id += from->rec_page_delta_rejected_invalid_page_id;
     to->rec_page_delta_rejected_max_consecutive_exceeded +=
       from->rec_page_delta_rejected_max_consecutive_exceeded;
@@ -2722,8 +2722,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_ingest_garbage_collection_keys_update_chain +=
       WT_STAT_DSRC_READ(from, rec_ingest_garbage_collection_keys_update_chain);
     to->rec_overflow_value += WT_STAT_DSRC_READ(from, rec_overflow_value);
-    to->rec_page_delta_rejected_large_page +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_large_page);
+    to->rec_page_delta_rejected_chain_size +=
+      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_chain_size);
     to->rec_page_delta_rejected_invalid_page_id +=
       WT_STAT_DSRC_READ(from, rec_page_delta_rejected_invalid_page_id);
     to->rec_page_delta_rejected_max_consecutive_exceeded +=
@@ -3821,8 +3821,8 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: number of keys that are garbage collected from the update chains in the ingest "
   "btrees for disaggregated storage",
   "reconciliation: overflow values written",
-  "reconciliation: page deltas rejected because the page and a delta could be larger than the "
-  "maximum disaggregated write size",
+  "reconciliation: page deltas rejected because the delta chain would be larger than the maximum "
+  "disaggregated write size",
   "reconciliation: page deltas rejected due to invalid page ID",
   "reconciliation: page deltas rejected due to max consecutive limit",
   "reconciliation: page deltas rejected due to multiblock reconciliation",
@@ -4987,7 +4987,7 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE,
   WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN,
   WT_STAT_CONN_REC_OVERFLOW_VALUE,
-  WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_LARGE_PAGE,
+  WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_CHAIN_SIZE,
   WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID,
   WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED,
   WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MULTIBLOCK,
@@ -6196,7 +6196,7 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->rec_ingest_garbage_collection_keys_disk_image = 0;
     stats->rec_ingest_garbage_collection_keys_update_chain = 0;
     stats->rec_overflow_value = 0;
-    stats->rec_page_delta_rejected_large_page = 0;
+    stats->rec_page_delta_rejected_chain_size = 0;
     stats->rec_page_delta_rejected_invalid_page_id = 0;
     stats->rec_page_delta_rejected_max_consecutive_exceeded = 0;
     stats->rec_page_delta_rejected_multiblock = 0;
@@ -7696,8 +7696,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_ingest_garbage_collection_keys_update_chain +=
       WT_STAT_CONN_READ(from, rec_ingest_garbage_collection_keys_update_chain);
     to->rec_overflow_value += WT_STAT_CONN_READ(from, rec_overflow_value);
-    to->rec_page_delta_rejected_large_page +=
-      WT_STAT_CONN_READ(from, rec_page_delta_rejected_large_page);
+    to->rec_page_delta_rejected_chain_size +=
+      WT_STAT_CONN_READ(from, rec_page_delta_rejected_chain_size);
     to->rec_page_delta_rejected_invalid_page_id +=
       WT_STAT_CONN_READ(from, rec_page_delta_rejected_invalid_page_id);
     to->rec_page_delta_rejected_max_consecutive_exceeded +=
