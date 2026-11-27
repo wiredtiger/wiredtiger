@@ -832,7 +832,9 @@ static int
 __clayered_open_stable_int(WTI_CURSOR_LAYERED *clayered, const char *stable_uri)
 {
     WT_SESSION_IMPL *session = CUR2S(clayered);
-    const char *cfg[3] = {WT_CONFIG_BASE(CUR2S(clayered), WT_SESSION_open_cursor), NULL, NULL};
+    const char *cfg[4] = {
+      WT_CONFIG_BASE(CUR2S(clayered), WT_SESSION_open_cursor), NULL, NULL, NULL};
+    u_int cfg_cnt = 1;
 
     /*
      * Forward the size summary to the active btree cursor. The file-cursor open path then sets the
@@ -842,7 +844,13 @@ __clayered_open_stable_int(WTI_CURSOR_LAYERED *clayered, const char *stable_uri)
      * cursor). Leaders do not reopen the active btree mid-scan.
      */
     if (F_ISSET(clayered, WTI_CLAYERED_SIZE_STAT))
-        cfg[1] = "debug=(size_stats=true)";
+        cfg[cfg_cnt++] = "debug=(size_stats=true)";
+
+    /* Forward the pre-fetch setting to the stable cursor, which is the one that reads from disk. */
+    if (F_ISSET(clayered, WTI_CLAYERED_PREFETCH_ENABLED))
+        cfg[cfg_cnt++] = "prefetch=(enabled=true)";
+    else if (F_ISSET(clayered, WTI_CLAYERED_PREFETCH_DISABLED))
+        cfg[cfg_cnt++] = "prefetch=(enabled=false)";
 
     WT_RET(__wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor));
     if (F_ISSET((WT_CURSOR *)clayered, WT_CURSTD_OVERWRITE))
@@ -4660,7 +4668,7 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     WTI_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
-    bool cacheable;
+    bool cacheable, prefetch_enabled, prefetch_set;
 
     WT_VERIFY_OPAQUE_POINTER(WTI_CURSOR_LAYERED);
 
@@ -4727,6 +4735,18 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     WT_ERR(__wt_config_gets_def(session, cfg, "debug.size_stats", 0, &cval));
     if (cval.val != 0) {
         F_SET(clayered, WTI_CLAYERED_SIZE_STAT);
+        cacheable = false;
+    }
+
+    /*
+     * Remember the pre-fetch setting so the stable btree inherits it each time it is opened or
+     * reopened. As with the size summary, disable caching so the cursor is never handed back to an
+     * open with a different setting.
+     */
+    WT_ERR(__wti_cursor_config_prefetch(session, cfg, &prefetch_set, &prefetch_enabled));
+    if (prefetch_set) {
+        F_SET(clayered,
+          prefetch_enabled ? WTI_CLAYERED_PREFETCH_ENABLED : WTI_CLAYERED_PREFETCH_DISABLED);
         cacheable = false;
     }
 

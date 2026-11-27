@@ -978,7 +978,7 @@ __verify_tree(
      * utilizing the regular tree walk function. Check for potential pages to pre-fetch here as
      * well.
      */
-    if (__wt_session_prefetch_check(session, ref))
+    if (__wt_session_prefetch_check(session, ref, 0))
         WT_RET(__wti_btree_prefetch(session, ref));
 
     __wt_verbose(session, WT_VERB_VERIFY, "%s, %s, write_gen: %" PRIu64 ", entries: %" PRIu32,

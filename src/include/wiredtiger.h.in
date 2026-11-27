@@ -1077,6 +1077,13 @@ struct __wt_session {
      * existing state of the record.  If \c overwrite is \c false\, WT_CURSOR::insert fails with
      * ::WT_DUPLICATE_KEY if the record exists\, and WT_CURSOR::update fails with ::WT_NOTFOUND if
      * the record does not exist., a boolean flag; default \c true.}
+     * @config{prefetch = (, configure pre-fetching of pages from disk into the cache for this
+     * cursor., a set of related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether pre-fetch is enabled for this cursor.  If
+     * not set\, the cursor uses the session's \c prefetch setting.  Pre-fetching cannot be enabled
+     * if it is configured as unavailable at the connection level., a string\, chosen from the
+     * following options: \c "false"\, \c "true"; default empty.}
+     * @config{ ),,}
      * @config{raw, ignore the encodings for the key and value\, manage data as if the formats were
      * \c "u". See @ref cursor_raw for details., a boolean flag; default \c false.}
      * @config{read_once, results that are brought into cache from disk by this cursor will be given

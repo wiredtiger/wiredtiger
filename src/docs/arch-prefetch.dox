@@ -73,6 +73,17 @@ on or off for all sessions belonging to the connection.
 The session-level configuration can be used to override the connection-level
 configuration for specific sessions if desired.
 
+@subsection prefetch_api_cursor Cursor-Level Configuration
+
+\c WT_SESSION.open_cursor("prefetch=(enabled=true)")
+
+The cursor-level configuration can be used to override the session-level configuration
+for a single cursor, which is useful when a session is shared by operations with
+different pre-fetching needs. If not set, the cursor inherits the session's setting.
+Pre-fetching applies to cursor next and prev iteration; other cursor operations are
+unaffected. Enabling pre-fetching on a cursor is an error if pre-fetching is configured
+as unavailable at the connection level.
+
 @section prefetch_other Interaction With Other Components
 
 @subsection prefetch_other_cache_busyness Considering Current Cache Busyness

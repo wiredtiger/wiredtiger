@@ -49,14 +49,16 @@ struct __wti_cursor_layered {
     bool prepare_blocked_next;           /* Saved key was blocked by next, not prev */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WTI_CLAYERED_ACTIVE 0x01u                   /* Incremented the session count */
-#define WTI_CLAYERED_ITERATE_ALT_BLOCKED_NEXT 0x02u /* Forward alternate blocked */
-#define WTI_CLAYERED_ITERATE_ALT_BLOCKED_PREV 0x04u /* Backward alternate blocked */
-#define WTI_CLAYERED_ITERATE_NEXT 0x08u             /* Forward iteration */
-#define WTI_CLAYERED_ITERATE_PREV 0x10u             /* Backward iteration */
-#define WTI_CLAYERED_RANDOM 0x20u                   /* Random cursor operations only */
-#define WTI_CLAYERED_SIZE_STAT 0x40u /* Accumulate the size summary on the active btree */
-                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WTI_CLAYERED_ACTIVE 0x001u                   /* Incremented the session count */
+#define WTI_CLAYERED_ITERATE_ALT_BLOCKED_NEXT 0x002u /* Forward alternate blocked */
+#define WTI_CLAYERED_ITERATE_ALT_BLOCKED_PREV 0x004u /* Backward alternate blocked */
+#define WTI_CLAYERED_ITERATE_NEXT 0x008u             /* Forward iteration */
+#define WTI_CLAYERED_ITERATE_PREV 0x010u             /* Backward iteration */
+#define WTI_CLAYERED_PREFETCH_DISABLED 0x020u        /* Pre-fetch disabled on the stable cursor */
+#define WTI_CLAYERED_PREFETCH_ENABLED 0x040u         /* Pre-fetch enabled on the stable cursor */
+#define WTI_CLAYERED_RANDOM 0x080u                   /* Random cursor operations only */
+#define WTI_CLAYERED_SIZE_STAT 0x100u /* Accumulate the size summary on the active btree */
+                                      /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 

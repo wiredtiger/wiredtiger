@@ -199,6 +199,10 @@ __wti_prefetch_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "prefetch.available", &cval));
     conn->prefetch.available = cval.val != 0;
 
+    /* In-memory connections force pre-fetching off during connection configuration; keep that. */
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY))
+        conn->prefetch.available = false;
+
     /*
      * Pre-fetch functionality isn't runtime configurable, so don't bother starting utility threads
      * if it isn't available.

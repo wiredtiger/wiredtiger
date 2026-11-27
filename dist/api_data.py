@@ -1896,6 +1896,15 @@ methods = {
         results that are brought into cache from disk by this cursor will be given less priority
         in the cache.''',
         type='boolean'),
+    Config('prefetch', '', r'''
+        configure pre-fetching of pages from disk into the cache for this cursor''',
+        type='category', subconfig=[
+        Config('enabled', '', r'''
+            whether pre-fetch is enabled for this cursor. If not set, the cursor uses the
+            session's \c prefetch setting. Pre-fetching cannot be enabled if it is configured
+            as unavailable at the connection level''',
+            choices=['false', 'true']),
+        ]),
     Config('readonly', 'false', r'''
         only query operations are supported by this cursor. An error is returned if a modification
         is attempted using the cursor. The default is false for all cursor types except for
