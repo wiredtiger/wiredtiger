@@ -1590,6 +1590,7 @@ __rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
     WT_BTREE *btree;
     WTI_REC_CHUNK *tmp;
     size_t inuse;
+    bool below_write_limit, short_intl_page;
 
     btree = S2BT(session);
 
@@ -1615,12 +1616,13 @@ __rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
 
     /*
      * A disaggregated page must fit in a single page log message, so the minimum entry count can't
-     * justify growing past the maximum write size. Split as long as there is more than one entry on
-     * the page.
+     * justify growing past the maximum write size. A page with fewer than two entries can't be
+     * split, so it counts as below the limit.
      */
-    if (r->page->type == WT_PAGE_ROW_INT && r->entries < WT_PAGE_INTL_MINIMUM_ENTRIES &&
-      (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || r->entries < 2 ||
-        inuse + next_len <= WT_BLOCK_DISAGG_MAX_WRITE_SIZE))
+    short_intl_page = r->page->type == WT_PAGE_ROW_INT && r->entries < WT_PAGE_INTL_MINIMUM_ENTRIES;
+    below_write_limit = !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || r->entries < 2 ||
+      inuse + next_len <= WT_BLOCK_DISAGG_MAX_WRITE_SIZE;
+    if (short_intl_page && below_write_limit)
         goto done;
 
     /* All page boundaries reset the dictionary. */
