@@ -1056,9 +1056,9 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
 
 /*
  * __wti_cursor_config_prefetch --
- *     Parse a cursor's pre-fetch configuration. On return, *setp is true if the configuration
- *     specifies a pre-fetch setting, and *enabledp is that setting. Cursors that do not specify a
- *     setting inherit the session's setting.
+ *     Parse a cursor's pre-fetch configuration, reporting whether the configuration specifies a
+ *     pre-fetch setting and what that setting is. A cursor that does not specify a setting inherits
+ *     the session's.
  */
 int
 __wti_cursor_config_prefetch(
