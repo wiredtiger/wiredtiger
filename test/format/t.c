@@ -212,7 +212,7 @@ main(int argc, char *argv[])
     u_int leader_ops_seconds, ops_seconds, reps, total_reps;
     int ch;
     const char *config, *home;
-    bool is_backup, quiet_flag, verify_only;
+    bool is_backup, quiet_flag, ran_operations, verify_only;
 
     custom_die = format_die; /* Local death handler. */
 
@@ -342,17 +342,33 @@ main(int argc, char *argv[])
     /* Configure the random number generators. */
     config_random_generators();
 
-    /*
-     * If disagg is enabled in multi-node, this call forks additional follower processes. Code that
-     * follows runs in each process.
-     */
-    disagg_setup_multi_node();
-
     /* format.sh looks for this line in the log file, push it out quickly. */
     if (!syntax_check) {
         printf("%s: process %" PRIdMAX " running\n", progname, (intmax_t)getpid());
         fflush(stdout);
     }
+
+    if (GV(RUNS_DISK_BUDGET_MB) != 0) {
+        if (GV(FORMAT_ABORT) || GV(RUNS_PREDICTABLE_REPLAY) || disagg_is_enabled()) {
+            fprintf(stderr,
+              "%s: run FAILED: disk budgeting is incompatible with abort testing, predictable "
+              "replay and disaggregated storage\n",
+              progname);
+            config_clear();
+            return (EXIT_FAILURE);
+        }
+#ifdef _WIN32
+        fprintf(stderr, "%s: run FAILED: disk budgeting requires POSIX\n", progname);
+        config_clear();
+        return (EXIT_FAILURE);
+#endif
+    }
+
+    /*
+     * If disagg is enabled in multi-node, this call forks additional follower processes. Code that
+     * follows runs in each process.
+     */
+    disagg_setup_multi_node();
 
     /* Configure the run. */
     config_run();
@@ -390,6 +406,7 @@ main(int argc, char *argv[])
         locks_init(g.wts_conn);
     } else {
         wts_create_home();
+        disk_budget_limit_rows();
         config_print(false);
         trace_init();
         wts_create_database();
@@ -410,7 +427,10 @@ main(int argc, char *argv[])
     if (!g.reopen)
         TIMED_MAJOR_OP(wts_load());
     TIMED_MAJOR_OP(wts_verify(g.wts_conn, true));
-    if (verify_only)
+    if (!verify_only)
+        g.disk_budget_reached = disk_budget_check("initial verification");
+    ran_operations = !verify_only && !g.disk_budget_reached;
+    if (!ran_operations)
         goto skip_operations;
     scan_args.conn = g.wts_conn;
     scan_args.rnd = &g.extra_rnd;
@@ -430,7 +450,7 @@ main(int argc, char *argv[])
      */
     ops_seconds = GV(RUNS_TIMER) == 0 ? 0 : ((GV(RUNS_TIMER) * 60) - 15) / FORMAT_OPERATION_REPS;
     if (!disagg_is_mode_switch())
-        for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
+        for (reps = 1; reps <= FORMAT_OPERATION_REPS && !g.disk_budget_reached; ++reps)
             operations(ops_seconds, reps, FORMAT_OPERATION_REPS);
     else {
         /*
@@ -454,7 +474,7 @@ main(int argc, char *argv[])
          */
         total_reps =
           GV(DISAGG_STEPDOWN_ASYNC) ? FORMAT_OPERATION_REPS : (FORMAT_OPERATION_REPS * 2);
-        for (reps = 1; reps <= total_reps; ++reps) {
+        for (reps = 1; reps <= total_reps && !g.disk_budget_reached; ++reps) {
             ops_seconds = g.disagg_leader ? leader_ops_seconds : DISAGG_SWITCH_FOLLOWER_OPS_SEC;
             operations(ops_seconds, reps, total_reps);
             disagg_switch_roles();
@@ -467,12 +487,8 @@ main(int argc, char *argv[])
 skip_operations:
     locks_destroy(g.wts_conn);
 
-    /*
-     * Verify the objects. Verify closes the underlying handle and discards the statistics, read
-     * them first. However, for verify_only we've already completed the verification above. Skip
-     * this one.
-     */
-    if (!verify_only)
+    /* Final verification closes the handles and discards their statistics. */
+    if (ran_operations)
         TIMED_MAJOR_OP(wts_verify(g.wts_conn, true));
 
     track("shutting down", 0ULL);
@@ -490,10 +506,10 @@ skip_operations:
     if (!GV(QUIET))
         printf("\r%78s\r", " ");
     __wt_seconds(NULL, &now);
-    printf("%s: successful run completed (%" PRIu64 " seconds)\n ", progname, now - start);
-    fflush(stdout);
-
     config_clear();
+    printf("%s: %s (%" PRIu64 " seconds)\n ", progname,
+      g.disk_budget_reached ? "disk budget limited run" : "successful run completed", now - start);
+    fflush(stdout);
 
     return (EXIT_SUCCESS);
 }

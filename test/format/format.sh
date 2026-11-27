@@ -39,7 +39,7 @@ trap 'onintr' 2
 usage() {
     echo "usage: $0 [-aEFRSv] [-b format-binary] [-c config] [-D directory]"
     echo "    [-e env-var] [-h home] [-j parallel-jobs] [-n total-jobs] [-r live-record-binary]"
-    echo "    [-t minutes] [format-configuration]"
+    echo "    [-t minutes] [--disk-budget] [format-configuration]"
     echo
     echo "    -a           configure format abort/recovery testing (defaults to off)"
     echo "    -b binary    format binary (defaults to "./t")"
@@ -58,6 +58,7 @@ usage() {
     echo "    -T           turn on format tracing (defaults to off)"
     echo "    -t minutes   minutes to run (defaults to no limit)"
     echo "    -v           verbose output (defaults to off)"
+    echo "    --disk-budget autosize per-job disk budgets from the run filesystem"
     echo "    --           separates $name arguments from additional format arguments"
 
     exit 1
@@ -87,6 +88,7 @@ directory_next=0
 directory_total=0
 
 abort_test=0
+auto_disk_budget=0
 build=""
 config="CONFIG.stress"
 first_failure=0
@@ -186,6 +188,9 @@ while :; do
     -v)
         verbose=1
         shift ;;
+    --disk-budget)
+        auto_disk_budget=1
+        shift ;;
     --)
         shift; break;;
     -*)
@@ -267,10 +272,22 @@ wt_binary="../../wt"
     fatal_msg "configuration file \"$config\" not found"
 }
 
+if [[ $auto_disk_budget -ne 0 ]]; then
+    [[ $abort_test -eq 0 ]] || fatal_msg "--disk-budget is incompatible with -a"
+    if [[ $total_jobs -ne 0 && $total_jobs -lt $parallel_jobs ]]; then
+        parallel_jobs=$total_jobs
+    fi
+    source ./disk_budget.sh || exit 1
+    format_disk_budget "$home" "$parallel_jobs" || exit 1
+    parallel_jobs=$format_disk_jobs
+    format_args+=" runs.disk_budget_mb=$format_disk_budget_mib"
+fi
+
 msg "configuration: $format_binary [-c $config]\
 [-h $home] [-j $parallel_jobs] [-n $total_jobs] [-t $minutes] $format_args"
 
 failure=0
+budget_limited=0
 success=0
 running=0
 timeouts=0
@@ -503,6 +520,19 @@ resolve()
             continue
         }
 
+        # A budget-limited run has closed its database, but did not finish the workload.
+        if grep -q 'disk budget limited run' "$log"; then
+            grep 'disk budget' "$log"
+            budget_limited=$((budget_limited + 1))
+            msg "job in $dir limited by disk budget"
+            if [[ $budget_limited -eq 1 && -f "$dir/CONFIG" ]]; then
+                msg "configuration for the first budget-limited job:"
+                cat "$dir/CONFIG"
+            fi
+            rm -rf -- "$dir" "$log" "$rec_dir"
+            continue
+        fi
+
         # Test recovery on jobs configured for random abort. */
         grep 'aborting to test recovery' $log > /dev/null && {
             cp -pr $dir $dir.RECOVER
@@ -708,8 +738,10 @@ done
 [[ $out_of_space_detected -eq 1 ]] && report_running_configs
 
 msg "$success successful jobs, $failure failed jobs"
+[[ $budget_limited -eq 0 ]] || msg "$budget_limited jobs limited by disk budget"
 
 msg "run ending at $(date)"
 [[ $failure -ne 0 ]] && exit 1
-[[ $success -eq 0 && $timeouts -eq 0 ]] && exit 1
+# Runs that end early (a timeout or a disk budget stop) are not failures.
+[[ $success -eq 0 && $timeouts -eq 0 && $budget_limited -eq 0 ]] && exit 1
 exit 0

@@ -222,19 +222,26 @@ disagg_sync_multi_node(WT_SESSION *session)
 }
 
 /*
+ * disagg_is_enabled --
+ *     Return true if disaggregated storage is configured.
+ */
+bool
+disagg_is_enabled(void)
+{
+    const char *page_log;
+
+    page_log = GVS(DISAGG_PAGE_LOG);
+    return (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0);
+}
+
+/*
  * disagg_is_multi_node --
  *     Return true if disagg is configured for multi-node.
  */
 bool
 disagg_is_multi_node(void)
 {
-    const char *page_log;
-    bool disagg_enabled;
-
-    page_log = GVS(DISAGG_PAGE_LOG);
-    disagg_enabled = (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0);
-
-    return (disagg_enabled && GV(DISAGG_MULTI));
+    return (disagg_is_enabled() && GV(DISAGG_MULTI));
 }
 
 /*

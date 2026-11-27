@@ -1077,8 +1077,14 @@ functions:
           exit 1
         }
 
+        disk_budget_arg=
+        if [[ "${format_auto_disk_budget|0}" == 1 && "$(uname -s)" == Linux ]]; then
+          source ./disk_budget.sh
+          format_disk_budget . 1
+          disk_budget_arg="runs.disk_budget_mb=$format_disk_budget_mib"
+        fi
         for i in $(seq ${times|1}); do
-          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=50} ${test_format_extra_args|} ${format_variant_args|} || fail
+          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=50} ${test_format_extra_args|} ${format_variant_args|} $disk_budget_arg || fail
         done
   "format test predictable":
     command: shell.exec
@@ -1113,9 +1119,13 @@ functions:
         # /proc/meminfo here.
         memory_max=$(cat /proc/meminfo | grep "MemTotal: " | grep -o "[[:digit:]]*")
         memory_max=$(( ($memory_max * 8) / (${num_jobs} * 1024 * 10) ))
+        disk_budget_arg=
+        if [[ "${format_auto_disk_budget|0}" == 1 && "$(uname -s)" == Linux ]]; then
+          disk_budget_arg=--disk-budget
+        fi
         # Evergreen reports only the first failure, so stop scheduling jobs after it.
         for i in $(seq ${times|1}); do
-          ./format.sh -F -j ${num_jobs} ${format_test_script_args|} cache.maximum=$memory_max ${format_variant_args|} 2>&1
+          ./format.sh $disk_budget_arg -F -j ${num_jobs} ${format_test_script_args|} cache.maximum=$memory_max ${format_variant_args|} 2>&1
         done
   "format test disagg":
     command: shell.exec
@@ -1706,6 +1716,7 @@ variables:
       - func: "format test script"
         vars:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
+          format_auto_disk_budget: "1"
 
   - &format-stress-asan-ppc-test
     exec_timeout_secs: 25200
@@ -1721,6 +1732,7 @@ variables:
           # Always disable mmap for PPC due to issues on variant setup.
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
           format_test_script_args: -t 360 -- -C "mmap=false,mmap_all=false"
+          format_auto_disk_budget: "1"
 
   - &format-stress-asan-test
     exec_timeout_secs: 25200
@@ -1734,6 +1746,7 @@ variables:
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           format_test_script_args: -t 360 -- debug.realloc_exact=0
+          format_auto_disk_budget: "1"
 
   - &race-condition-stress-asan-test
     exec_timeout_secs: 25200
@@ -1747,6 +1760,7 @@ variables:
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           format_test_script_args: -R -t 360
+          format_auto_disk_budget: "1"
 
   - &recovery-stress-test
     exec_timeout_secs: 25200
@@ -4293,6 +4307,7 @@ tasks:
           times: 10
           config: ../../../test/format/CONFIG.endian
           test_format_extra_args: -h "WT_TEST.$i"
+          format_auto_disk_budget: "1"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/test/format"
@@ -4346,6 +4361,7 @@ tasks:
           times: 10
           config: ../../../test/format/CONFIG.endian
           test_format_extra_args: -h "WT_TEST.$i"
+          format_auto_disk_budget: "1"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/test/format"
@@ -4748,6 +4764,7 @@ tasks:
         vars:
           times: 3
           test_format_extra_args: runs.rows=1000000:2500000
+          format_auto_disk_budget: "1"
 
   - name: spinlock-pthread-adaptive-test
     depends_on: *s-all-dep
@@ -4762,6 +4779,7 @@ tasks:
         vars:
           times: 3
           test_format_extra_args: runs.rows=1000000:2500000
+          format_auto_disk_budget: "1"
 
   - name: wtperf-test
     depends_on:
@@ -4867,12 +4885,14 @@ tasks:
       - func: "format test"
         vars:
           test_format_extra_args: file_type=row runs.rows=1000000:2500000
+          format_auto_disk_budget: "1"
 
       # format test for stressing compaction code path
       - func: "format test"
         vars:
           times: 3
           test_format_extra_args: file_type=row compaction=1 verify=1 runs.rows=1000000:2500000 runs.timer=3 ops.pct.delete=30
+          format_auto_disk_budget: "1"
 
   - name: time-shift-sensitivity-test
     depends_on:
@@ -4898,6 +4918,7 @@ tasks:
       - func: "format test"
         vars:
           config: ../../../test/format/CONFIG.mirror
+          format_auto_disk_budget: "1"
           trace_args: -T all
 
   - name: format-msan-test
@@ -4909,6 +4930,7 @@ tasks:
         vars:
           # run for 10 minutes.
           format_test_script_args: -c ../../../test/format/CONFIG.msan -t 10 rows=10000 ops=50000
+          format_auto_disk_budget: "1"
 
   - name: format-stress-pull-request-test
     tags: ["pull_request"]
@@ -4920,6 +4942,7 @@ tasks:
         vars:
           # run for 10 minutes.
           format_test_script_args: -t 10 rows=10000 ops=50000
+          format_auto_disk_budget: "1"
 
   - name: format-smoke-test
     depends_on: *s-all-dep
@@ -4931,9 +4954,11 @@ tasks:
       - func: "format test script"
         vars:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -S
+          format_auto_disk_budget: "1"
       - func: "format test"
         vars:
           test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)"
+          format_auto_disk_budget: "1"
 
   - name: format-asan-smoke-test
     depends_on: *s-all-dep
@@ -4946,10 +4971,12 @@ tasks:
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           format_test_script_args: -S
+          format_auto_disk_budget: "1"
       - func: "format test"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)"
+          format_auto_disk_budget: "1"
 
   - name: format-stress-test-tsan
     tags: ["pull_request"]
@@ -4963,11 +4990,13 @@ tasks:
           # FIXME-WT-16313: Consider how to avoid the internal TSAN issue.
           test_format_extra_args: runs.rows=1000:3000 runs.tables=1:3 runs.ops=3000
           times: 3
+          format_auto_disk_budget: "1"
       - func: "format test"
         vars:
           test_format_extra_args: runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           times: 3
+          format_auto_disk_budget: "1"
 
   - name: format-wtperf-test
     depends_on: *s-all-dep
@@ -5445,6 +5474,7 @@ tasks:
         vars:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120
+          format_auto_disk_budget: "1"
 
   - name: format-stress-ppc-test
     tags: ["stress-test-ppc-1"]
@@ -5462,6 +5492,7 @@ tasks:
           # Always disable mmap for PPC due to issues on variant setup.
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120 -- -C "mmap=false,mmap_all=false"
+          format_auto_disk_budget: "1"
 
   - <<: *format-stress-test
     name: format-stress-test-1

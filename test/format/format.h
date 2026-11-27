@@ -249,6 +249,7 @@ typedef struct {
 
     bool backward_compatible;      /* Backward compatibility testing */
     bool configured;               /* Configuration completed */
+    bool disk_budget_reached;      /* Run stopped at a phase boundary */
     wt_shared bool expect_failure; /* We expect a failure */
     bool reopen;                   /* Reopen an existing database */
     bool workers_finished;         /* Operations completed */
@@ -521,12 +522,15 @@ void create_database(const char *home, WT_CONNECTION **connp);
 void cursor_dump_page(WT_CURSOR *, const char *);
 void disagg_async_stepdown(wt_thread_t *, wt_thread_t *);
 WT_THREAD_RET disagg_stepdown_thread(void *);
+bool disagg_is_enabled(void);
 bool disagg_is_mode_switch(void);
 bool disagg_is_multi_node(void);
 void disagg_setup_multi_node(void);
 void disagg_switch_roles(void);
 void disagg_teardown_multi_node(void);
 void disagg_sync_multi_node(WT_SESSION *);
+bool disk_budget_check(const char *);
+void disk_budget_limit_rows(void);
 const char *session_prefetch_cfg(void);
 void fclose_and_clear(FILE **);
 void follower_read_latest_checkpoint(void);

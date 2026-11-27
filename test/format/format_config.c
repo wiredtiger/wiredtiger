@@ -1045,6 +1045,8 @@ config_in_memory(void)
         return;
     if (config_explicit(NULL, "precise_checkpoint"))
         return;
+    if (config_explicit(NULL, "runs.disk_budget_mb"))
+        return;
     if (config_explicit(NULL, "runs.mirror"))
         return;
     if (config_explicit(NULL, "runs.predictable_replay"))
@@ -1425,11 +1427,9 @@ static void
 config_disagg_storage(void)
 {
     char buf[128];
-    const char *mode, *page_log;
+    const char *mode;
 
-    page_log = GVS(DISAGG_PAGE_LOG);
-
-    g.disagg_storage_config = (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0);
+    g.disagg_storage_config = disagg_is_enabled();
     if (!g.disagg_storage_config)
         return; /* Disaggregated storage not enabled. */
 
