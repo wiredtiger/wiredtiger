@@ -140,3 +140,25 @@ class test_disagg_internal_page_size01(wttest.WiredTigerTestCase):
             self.assertEqual(self.get_stat(stat.conn.cursor_write_exceeds_disagg_page_limit), 9)
             self.assertEqual(
                 self.get_stat(stat.dsrc.cursor_write_exceeds_disagg_page_limit, self.uri), 9)
+
+    def test_large_item_after_small_content(self):
+        # A leaf chunk that is still small must be split off before an item that would take the
+        # page past the maximum write size.
+        small_rows = 10
+        large_value_size = 32 * 1024 * 1024 - 512
+        self.session.create(self.uri, self.table_config)
+        with wttest.open_cursor(self.session, self.uri) as cursor:
+            for i in range(small_rows):
+                with self.transaction(commit_timestamp=i + 1):
+                    cursor[f'key{i:02d}'] = 'v' * 100
+            with self.transaction(commit_timestamp=small_rows + 1):
+                cursor['zlarge'] = 'x' * large_value_size
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(small_rows + 1))
+        self.session.checkpoint()
+
+        # Reopen without wiping the page store, so every page is read back from its checkpoint.
+        self.conn_config = self.conn_config.replace(',lose_all_my_data=true', '')
+        self.reopen_conn()
+        with wttest.open_cursor(self.session, self.uri) as cursor:
+            self.assertEqual(cursor['key00'], 'v' * 100)
+            self.assertEqual(cursor['zlarge'], 'x' * large_value_size)

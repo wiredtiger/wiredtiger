@@ -182,7 +182,8 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     }
 
     WT_ASSERT_ALWAYS(session, buf->size <= WT_BLOCK_DISAGG_MAX_WRITE_SIZE,
-      "block of %" WT_SIZET_FMT " bytes is larger than the maximum disaggregated write size of %d",
+      "block of %" WT_SIZET_FMT
+      " bytes is larger than the maximum disaggregated write size of %d bytes",
       buf->size, (int)WT_BLOCK_DISAGG_MAX_WRITE_SIZE);
 
     /* Get the page ID. */

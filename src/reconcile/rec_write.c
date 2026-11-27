@@ -1611,17 +1611,18 @@ __rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
      * contain the current item if we don't have enough items to split an internal page.
      */
     inuse = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
-    if (inuse < r->split_size / 2 && !__wti_rec_need_split(r, 0))
-        goto done;
 
     /*
-     * A disaggregated page must fit in a single page log message, so the minimum entry count can't
-     * justify growing past the maximum write size. A page with fewer than two entries can't be
-     * split, so it counts as below the limit.
+     * A disaggregated page must fit in a single page log message, so neither a small chunk nor the
+     * minimum entry count can justify growing past the maximum write size. A page with fewer than
+     * two entries can't be split, so it counts as below the limit.
      */
-    short_intl_page = r->page->type == WT_PAGE_ROW_INT && r->entries < WT_PAGE_INTL_MINIMUM_ENTRIES;
     below_write_limit = !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || r->entries < 2 ||
       inuse + next_len <= WT_BLOCK_DISAGG_MAX_WRITE_SIZE;
+    if (inuse < r->split_size / 2 && !__wti_rec_need_split(r, 0) && below_write_limit)
+        goto done;
+
+    short_intl_page = r->page->type == WT_PAGE_ROW_INT && r->entries < WT_PAGE_INTL_MINIMUM_ENTRIES;
     if (short_intl_page && below_write_limit)
         goto done;
 
@@ -2856,12 +2857,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                 skip_write = true;
             else if (delta_enabled) {
                 /*
-                 * A page that grew past the maximum page size because of a large item is always
-                 * written in full, so a page together with its deltas stays within the page log
-                 * message size.
+                 * A page that grew past the size reconciliation builds pages to (the maximum page
+                 * size, adjusted for compression) because of a large item is always written in
+                 * full, so a page together with its deltas stays within the page log message size.
                  */
-                if (chunk->image.size >
-                  (WT_PAGE_IS_INTERNAL(page) ? btree->maxintlpage : btree->maxleafpage))
+                if (chunk->image.size > r->page_size)
                     WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_large_page);
                 else if (block_meta->delta_count < conn->page_delta.max_consecutive_delta) {
                     WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));

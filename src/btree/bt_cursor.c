@@ -248,7 +248,7 @@ __cursor_disagg_size_chk(WT_SESSION_IMPL *session, const WT_ITEM *key, const WT_
         WT_STAT_CONN_DSRC_INCR(session, cursor_write_exceeds_disagg_page_limit);
         WT_RET_MSG(session, EINVAL,
           "key and value size of %" WT_SIZET_FMT
-          " exceeds the maximum size of a disaggregated page of %d",
+          " bytes exceeds the maximum size of a disaggregated page of %d bytes",
           kv_size, (int)WT_BLOCK_DISAGG_MAX_WRITE_SIZE);
     }
     return (0);

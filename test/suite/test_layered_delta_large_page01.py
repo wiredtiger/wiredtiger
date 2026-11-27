@@ -27,12 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# A leaf page that grew past the maximum page size because of a large value is always written in
-# full, even when a small change to it would otherwise produce a small delta.
+# A leaf page that grew past the size reconciliation builds pages to because of a large value is
+# always written in full, even when a small change to it would otherwise produce a small delta. With
+# compression, pages are built larger than the maximum page size and still get deltas.
 @disagg_test_class
 class test_layered_delta_large_page01(wttest.WiredTigerTestCase):
 
@@ -47,16 +48,29 @@ class test_layered_delta_large_page01(wttest.WiredTigerTestCase):
     # The small rows of the large page stay under half of the split size, so the large value is
     # added to the same page instead of starting a new one.
     page_sizes = [
-        ('large', dict(nkeys=10, large_value_size=40000, expect_delta=False)),
-        ('normal', dict(nkeys=30, large_value_size=0, expect_delta=True)),
+        ('large', dict(nkeys=10, large_value_size=40000, expect_delta=False, compressor='none',
+            leaf_page_max=4096)),
+        ('normal', dict(nkeys=30, large_value_size=0, expect_delta=True, compressor='none',
+            leaf_page_max=4096)),
+        # Compressible rows that take a page past the maximum page size before compression.
+        ('compressed', dict(nkeys=600, large_value_size=0, expect_delta=True, compressor='snappy',
+            leaf_page_max=32768)),
     ]
     scenarios = make_scenarios(disagg_storages, page_sizes)
 
-    TABLE_CONFIG = (
-        'key_format=S,value_format=S,'
-        'allocation_size=4096,leaf_page_max=4096,'
-        'block_manager=disagg'
-    )
+    def table_config(self):
+        return (
+            'key_format=S,value_format=S,'
+            f'allocation_size=4096,leaf_page_max={self.leaf_page_max},'
+            f'block_compressor={self.compressor},'
+            'block_manager=disagg'
+        )
+
+    def conn_extensions(self, extlist):
+        if self.compressor != 'none':
+            extlist.skip_if_missing = True
+            extlist.extension('compressors', self.compressor)
+        DisaggConfigMixin.conn_extensions(self, extlist)
     VALUE_SIZE = 100
 
     def conn_config(self):
@@ -84,7 +98,7 @@ class test_layered_delta_large_page01(wttest.WiredTigerTestCase):
         s.close()
 
     def test_no_delta_for_large_page(self):
-        self.session.create(self.uri, self.TABLE_CONFIG)
+        self.session.create(self.uri, self.table_config())
         cursor = self.session.open_cursor(self.uri)
         for i in range(self.nkeys):
             self.session.begin_transaction()
