@@ -162,7 +162,6 @@ snap_track(TINFO *tinfo, thread_op op)
 {
     SNAP_OPS *snap;
     TABLE *table;
-    WT_ITEM *ip;
 
     table = tinfo->table;
 
@@ -172,21 +171,29 @@ snap_track(TINFO *tinfo, thread_op op)
     snap->id = table->id;
     snap->keyno = tinfo->keyno;
     snap->ts = WT_TS_NONE;
+    snap->durable_ts = WT_TS_NONE;
     snap->repeatable = false;
     snap->last = 0;
     snap->key.data = snap->value.data = NULL;
     snap->key.size = snap->value.size = 0;
 
     switch (op) {
+    case READ:
+        /* Only file cursors can participate in rollback-to-stable verification. */
+        if (tinfo->repeatable_reads && !g.disagg_storage_config && !GV(PRECISE_CHECKPOINT)) {
+            testutil_assert(WT_PREFIX_MATCH(tinfo->cursor->internal_uri, "file:"));
+            snap->durable_ts = ((WT_CURSOR_BTREE *)tinfo->cursor)->upd_value->tw.durable_start_ts;
+        }
+        testutil_check(__wt_buf_set(NULL, &snap->value, tinfo->value->data, tinfo->value->size));
+        break;
     case INSERT:
         if (table->type == ROW)
             testutil_check(__wt_buf_set(NULL, &snap->key, tinfo->key->data, tinfo->key->size));
         /* FALLTHROUGH */
     case MODIFY:
-    case READ:
     case UPDATE:
-        ip = op == READ ? tinfo->value : tinfo->new_value;
-        testutil_check(__wt_buf_set(NULL, &snap->value, ip->data, ip->size));
+        testutil_check(
+          __wt_buf_set(NULL, &snap->value, tinfo->new_value->data, tinfo->new_value->size));
         break;
     case REMOVE:
         break;
@@ -596,8 +603,14 @@ snap_repeat_update(TINFO *tinfo, bool committed)
         /*
          * Repeat reads at the transaction's read timestamp and updates at the commit timestamp.
          */
-        if (current->repeatable)
-            current->ts = current->op == READ ? tinfo->read_ts : tinfo->commit_ts;
+        if (current->repeatable) {
+            if (current->op == READ)
+                current->ts = tinfo->read_ts;
+            else {
+                current->ts = tinfo->commit_ts;
+                current->durable_ts = tinfo->durable_ts;
+            }
+        }
     }
 }
 
@@ -694,10 +707,10 @@ snap_repeat_single(TINFO *tinfo)
 
 /*
  * snap_repeat_stable --
- *     Repeat all known operations after a rollback.
+ *     Repeat operations at or before stable, excluding versions removed by rollback to stable.
  */
 void
-snap_repeat_stable(WT_SESSION *session, TINFO **tinfo_array, size_t tinfo_count)
+snap_repeat_stable(WT_SESSION *session, TINFO **tinfo_array, size_t tinfo_count, bool rolled_back)
 {
     SNAP_OPS *snap;
     SNAP_STATE *state;
@@ -724,7 +737,9 @@ snap_repeat_stable(WT_SESSION *session, TINFO **tinfo_array, size_t tinfo_count)
         for (statenum = 0; statenum < WT_ELEMENTS(tinfo->snap_states); statenum++) {
             state = &tinfo->snap_states[statenum];
             for (snap = state->snap_state_list; snap < state->snap_state_end; ++snap) {
-                if (snap->repeatable && snap->ts <= g.stable_timestamp) {
+                /* A prepared write can be visible at stable without surviving rollback. */
+                if (snap->repeatable && snap->ts <= g.stable_timestamp &&
+                  (!rolled_back || snap->durable_ts <= g.stable_timestamp)) {
                     snap_repeat(tinfo, snap);
                     ++count;
                     if (count % 100 == 0) {

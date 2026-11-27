@@ -395,8 +395,9 @@ typedef struct {
     u_int id;       /* Table ID */
     uint64_t keyno; /* Row number */
 
-    uint64_t ts;     /* Read/commit timestamp */
-    bool repeatable; /* Operation can be repeated */
+    wt_timestamp_t ts;         /* Timestamp at which to repeat the operation */
+    wt_timestamp_t durable_ts; /* Durable timestamp of the written or observed version */
+    bool repeatable;           /* Operation can be repeated */
 
     uint64_t last; /* Inclusive end of a truncate range */
 
@@ -459,14 +460,16 @@ typedef struct {
     uint64_t last; /* truncate range */
     WT_ITEM *lastkey, _lastkey;
 
-    bool ignore_prepare;      /* read with ignore_prepare */
-    bool repeatable_reads;    /* if read ops repeatable */
-    bool repeatable_wrap;     /* if circular buffer wrapped */
-    uint64_t opid;            /* Operation ID */
-    wt_timestamp_t commit_ts; /* commit timestamp */
-    wt_timestamp_t read_ts;   /* read timestamp */
-    wt_timestamp_t replay_ts; /* allocated timestamp for predictable replay */
-    wt_timestamp_t stable_ts; /* stable timestamp */
+    bool ignore_prepare;       /* read with ignore_prepare */
+    bool repeatable_reads;     /* if read ops repeatable */
+    bool repeatable_wrap;      /* if circular buffer wrapped */
+    uint64_t opid;             /* Operation ID */
+    wt_timestamp_t commit_ts;  /* commit timestamp */
+    wt_timestamp_t durable_ts; /* last committed transaction's durable timestamp */
+    wt_timestamp_t prepare_ts; /* prepare timestamp */
+    wt_timestamp_t read_ts;    /* read timestamp */
+    wt_timestamp_t replay_ts;  /* allocated timestamp for predictable replay */
+    wt_timestamp_t stable_ts;  /* stable timestamp */
     SNAP_STATE snap_states[2];
     SNAP_STATE *s; /* points to one of the snap_states */
 
@@ -543,7 +546,7 @@ void set_alarm(u_int);
 void set_core(bool);
 void snap_init(TINFO *);
 void snap_op_init(TINFO *, wt_timestamp_t, bool);
-void snap_repeat_stable(WT_SESSION *, TINFO **, size_t);
+void snap_repeat_stable(WT_SESSION *, TINFO **, size_t, bool);
 void snap_repeat_single(TINFO *);
 wt_timestamp_t snap_repeat_ts_span(void);
 int snap_repeat_txn(TINFO *);

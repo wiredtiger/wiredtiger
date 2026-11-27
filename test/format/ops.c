@@ -244,17 +244,15 @@ rollback_to_stable(WT_SESSION *session)
 {
     u_int num_threads;
     char cfg[32];
+    bool rolled_back;
 
     /* Rollback-to-stable only makes sense for timestamps. */
     if (!g.transaction_timestamps_config)
         return;
 
-    /* Rollback-to-stable is not supported for disaggregated storage. */
-    if (g.disagg_storage_config)
-        goto done;
-
-    /* Rollback-to-stable is not supported for precise checkpoint. */
-    if (GV(PRECISE_CHECKPOINT))
+    rolled_back = false;
+    /* Rollback-to-stable is not supported for disaggregated storage or precise checkpoint. */
+    if (g.disagg_storage_config || GV(PRECISE_CHECKPOINT))
         goto done;
 
     /* Rollback the system using the RTS threads config. */
@@ -262,6 +260,7 @@ rollback_to_stable(WT_SESSION *session)
     testutil_snprintf(cfg, sizeof(cfg), "threads=%" PRIu32, num_threads);
     testutil_check(
       g.wts_conn->rollback_to_stable(g.wts_conn, num_threads == RTS_THREADS_MAX ? NULL : cfg));
+    rolled_back = true;
 
     /*
      * Get the stable timestamp, and update ours. They should be the same, but there's no point in
@@ -280,7 +279,7 @@ rollback_to_stable(WT_SESSION *session)
 
 done:
     /* Check the saved snap operations for consistency. */
-    snap_repeat_stable(session, tinfo_list, GV(RUNS_THREADS));
+    snap_repeat_stable(session, tinfo_list, GV(RUNS_THREADS), rolled_back);
 }
 
 /*
@@ -724,27 +723,32 @@ commit_transaction(TINFO *tinfo, bool prepared)
 {
     WT_DECL_RET;
     WT_SESSION *session;
-    uint64_t ts;
+    wt_timestamp_t durable_ts, ts;
 
     session = tinfo->session;
 
     tinfo->ignore_prepare = false;
 
-    ts = 0; /* -Wconditional-uninitialized */
+    durable_ts = ts = WT_TS_NONE;
     if (g.transaction_timestamps_config) {
         if (prepared)
             lock_readlock(session, &g.prepare_commit_lock);
 
         if (GV(RUNS_PREDICTABLE_REPLAY))
-            ts = replay_commit_ts(tinfo);
-        else {
-            ts = next_timestamp(session);
-        }
+            durable_ts = ts = replay_commit_ts(tinfo);
+        else if (prepared && rng(&tinfo->data_rnd) % 10 == 0)
+            /* Stable stays below the worker's previous commit while this transaction is active. */
+            durable_ts = ts = tinfo->prepare_ts;
+        else if (prepared) {
+            durable_ts = next_timestamp(session);
+            ts = tinfo->prepare_ts + rng(&tinfo->data_rnd) % (durable_ts - tinfo->prepare_ts + 1);
+        } else
+            durable_ts = ts = next_timestamp(session);
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
 
         if (prepared)
             testutil_check(
-              session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, ts));
+              session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, durable_ts));
 
         ret = session->commit_transaction(session, NULL);
         if (prepared)
@@ -761,14 +765,16 @@ commit_transaction(TINFO *tinfo, bool prepared)
     testutil_check(ret);
     replay_committed(tinfo);
     ++tinfo->commit;
+    tinfo->durable_ts = durable_ts;
     /*
      * Remember our oldest commit timestamp. Updating the thread's commit timestamp allows read,
      * oldest and stable timestamps to advance, ensure we don't race.
      */
     __wt_atomic_store_uint64_release(&tinfo->commit_ts, ts);
 
-    trace_uri_op(tinfo, NULL, "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64, tinfo->read_ts,
-      tinfo->commit_ts);
+    trace_uri_op(tinfo, NULL,
+      "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64 ", durable-ts=%" PRIu64, tinfo->read_ts, ts,
+      durable_ts);
 
     return (true);
 }
@@ -792,6 +798,8 @@ rollback_transaction(TINFO *tinfo, bool prepared)
     if (prepared) {
         if (GV(RUNS_PREDICTABLE_REPLAY))
             ts = replay_rollback_ts(tinfo);
+        else if (rng(&tinfo->data_rnd) % 10 == 0)
+            ts = tinfo->prepare_ts;
         else
             ts = next_timestamp(session);
 
@@ -823,8 +831,8 @@ prepare_transaction(TINFO *tinfo)
     if (GV(RUNS_PREDICTABLE_REPLAY)) {
         ts = replay_prepare_ts(tinfo);
         /*
-         * WT_TS_NONE signals that there is no valid prepare timestamp for this transaction (e.g.,
-         * the lane's last commit is too close to the current replay_ts). Skip prepare.
+         * WT_TS_NONE signals that there is no valid prepare timestamp for this transaction (the
+         * lane's last commit is not below the current replay_ts). Skip prepare.
          */
         if (ts == WT_TS_NONE)
             return (ENOTSUP);
@@ -832,10 +840,10 @@ prepare_transaction(TINFO *tinfo)
         /*
          * Prepare timestamps must be less than or equal to the eventual commit timestamp but larger
          * than the current stable timestamp. Increase the global value to ensure it is larger than
-         * the stable timestamp. The subsequent commit will increment it again, ensuring
-         * correctness.
+         * the stable timestamp.
          */
         ts = next_timestamp(session);
+    tinfo->prepare_ts = ts;
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, ts));
     testutil_check(session->prepared_id_transaction_uint(session, prepared_id));
     ret = session->prepare_transaction(session, NULL);
