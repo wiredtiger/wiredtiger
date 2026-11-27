@@ -60,6 +60,7 @@ wiredtiger_cleanup(std::string const &home)
     remove_wrapper(home + "/backup_test1.wt");
     remove_wrapper(home + "/backup_test2.wt");
     remove_wrapper(home + "/cursor_test.wt");
+    remove_wrapper(home + "/prefetch_check");
     remove_wrapper(home);
 }
 
