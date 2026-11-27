@@ -28,8 +28,10 @@
 
 #pragma once
 
+#if defined(__linux__)
 #include <linux/perf_event.h>
 #include <linux/hw_breakpoint.h>
+#endif
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
@@ -58,6 +60,10 @@ public:
     int
     track(T lambda)
     {
+#if !defined(__linux__)
+        /* FIXME-WT-16144: Support instruction counters on platforms other than Linux. */
+        return (lambda());
+#else
         int fd = syscall(SYS_perf_event_open, &_pe,
           0,  // pid: calling process/thread
           -1, // cpu: any CPU
@@ -81,12 +87,15 @@ public:
             close(fd);
         }
         return ret;
+#endif
     }
 
 private:
     std::string _id;
     std::string _test_name;
     uint64_t _instruction_count;
+#if defined(__linux__)
     struct perf_event_attr _pe;
+#endif
 };
 } // namespace test_harness
