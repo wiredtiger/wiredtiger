@@ -76,9 +76,7 @@ class test_layered_stepdown_prepared_outdated(LayeredStepdownMixin, wttest.Wired
         baseline = self.dirty_stable()
         self.assertGreater(baseline, 0)
 
-        # The stat covers every stable tree, so compare against half the baseline rather than all
-        # of it: small changes elsewhere stay well within the margin, while discarding the outdated
-        # tree's pages takes almost all of the baseline with it.
+        # Allow for small changes in other stable trees, which the stat also counts.
         threshold = baseline // 2
 
         # Nothing can write an outdated tree, so a large drop in its dirty content means its pages
