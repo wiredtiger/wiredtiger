@@ -91,7 +91,7 @@ class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestC
         restore_after = self.get_stat(wiredtiger.stat.conn.layered_curs_restore_walk)
 
         # Resetting releases the position, which pins the live stable table. Resolving a straddling
-        # prepared transaction on the follower is not supported yet (FIXME-WT-18422), so the
+        # prepared transaction on the follower is not supported yet (FIXME-WT-19187), so the
         # rollback can be refused.
         cursor.reset()
         self.session.rollback_transaction()
@@ -152,7 +152,7 @@ class test_layered_async_stepdown17(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(returned, ['key4', 'key2'] if self.forward else ['key6', 'key8'])
 
         # Resetting releases the position, which pins the live stable table. Resolving a straddling
-        # prepared transaction on the follower is not supported yet (FIXME-WT-18422), so the
+        # prepared transaction on the follower is not supported yet (FIXME-WT-19187), so the
         # rollback can be refused.
         cursor.reset()
         self.session.rollback_transaction()
