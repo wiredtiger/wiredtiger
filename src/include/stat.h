@@ -60,6 +60,12 @@
 #define WT_STAT_DSRC_COUNTER_SLOTS 23
 
 /*
+ * Bytes passed to malloc for one data-source statistics array. The allocator may round this up; the
+ * stat reports the size WiredTiger requested.
+ */
+#define WT_STAT_DSRC_STAT_BYTES (WT_STAT_DSRC_COUNTER_SLOTS * sizeof(WT_DSRC_STATS))
+
+/*
  * WT_STATS_###_SLOT_ID is the thread's slot ID for the array of structures.
  *
  * Ideally, we want a slot per CPU, and we want each thread to index the slot corresponding to the
@@ -906,6 +912,8 @@ struct __wt_connection_stats {
     int64_t cond_auto_wait;
     int64_t cond_auto_wait_skipped;
     int64_t btree_open;
+    int64_t btree_dsrc_stats;
+    int64_t btree_dsrc_stats_bytes;
     int64_t cond_signal_n_signals;
     int64_t cond_signal_n_broadcast;
     int64_t time_travel;

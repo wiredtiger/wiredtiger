@@ -8,7 +8,9 @@
 
 #include "wt_internal.h"
 
-static int __stat_tree_walk(WT_SESSION_IMPL *);
+static int __stat_apply_gauges(WT_SESSION_IMPL *, WT_BTREE *, WT_BM *, WT_DSRC_STATS *);
+static int __stat_cursor_without_array(WT_SESSION_IMPL *, WT_CURSOR_STAT *);
+static int __stat_tree_walk(WT_SESSION_IMPL *, WT_DSRC_STATS **);
 static int __stat_page(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 static void __stat_page_col_var(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 static void __stat_page_row_int(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
@@ -38,6 +40,126 @@ static int __size_stat_overflow(WT_SESSION_IMPL *, const uint8_t *, size_t, int)
 #define WT_SIZE_STAT_OVFL_DELETED_VALUE 4
 
 /*
+ * __stat_dsrc_alloc --
+ *     Allocate data-source statistics for the size-summary walk. A fast statistics cursor does not
+ *     call this: it reads gauges into its own snapshot and leaves the handle's array unset.
+ */
+static int
+__stat_dsrc_alloc(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
+{
+    WT_DECL_RET;
+    bool allocated;
+
+    allocated = false;
+    if (handle->stat_array != NULL)
+        return (0);
+
+    /*
+     * Close takes this lock only after exclusive access, and the caller already holds the handle,
+     * so taking it here does not invert that order. Two statistics cursors can arrive together.
+     */
+    __wt_spin_lock(session, &handle->close_lock);
+    if (handle->stat_array == NULL) {
+        ret = __wt_stat_dsrc_init(session, handle);
+        allocated = ret == 0;
+    }
+    __wt_spin_unlock(session, &handle->close_lock);
+    if (allocated) {
+        WT_STAT_CONN_INCR(session, btree_dsrc_stats);
+        WT_STAT_CONN_INCRV(session, btree_dsrc_stats_bytes, WT_STAT_DSRC_STAT_BYTES);
+    }
+    return (ret);
+}
+
+/*
+ * __wt_btree_stat_init --
+ *     Initialize the Btree statistics.
+ */
+/*
+ * __stat_apply_gauges --
+ *     Copy live btree and block-manager values into one statistics struct.
+ */
+static int
+__stat_apply_gauges(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_BM *bm, WT_DSRC_STATS *stats)
+{
+    WT_RET(bm->stat(bm, session, stats));
+
+    WT_STAT_WRITE(session, stats, btree_fixed_len, btree->bitcnt);
+    WT_STAT_WRITE(session, stats, btree_maximum_depth, btree->maximum_depth);
+    WT_STAT_WRITE(session, stats, btree_maxintlpage, btree->maxintlpage);
+    WT_STAT_WRITE(session, stats, btree_maxleafkey, btree->maxleafkey);
+    WT_STAT_WRITE(session, stats, btree_maxleafpage, btree->maxleafpage);
+    WT_STAT_WRITE(session, stats, btree_maxleafvalue, btree->maxleafvalue);
+    WT_STAT_WRITE(session, stats, rec_multiblock_max, btree->rec_multiblock_max);
+
+    WT_STAT_WRITE(session, stats, cache_bytes_dirty, __wt_btree_dirty_inuse(session));
+    WT_STAT_WRITE(session, stats, cache_bytes_dirty_leaf, __wt_btree_dirty_leaf_inuse(session));
+    WT_STAT_WRITE(session, stats, cache_bytes_dirty_internal, __wt_btree_dirty_intl_inuse(session));
+    WT_STAT_WRITE(session, stats, cache_bytes_dirty_total,
+      __wt_cache_bytes_plus_overhead(
+        S2C(session)->cache, __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_total)));
+    WT_STAT_WRITE(session, stats, cache_bytes_inuse, __wt_btree_bytes_inuse(session));
+
+    WT_STAT_WRITE(session, stats, compress_precomp_leaf_max_page_size, btree->maxleafpage_precomp);
+    WT_STAT_WRITE(session, stats, compress_precomp_intl_max_page_size, btree->maxintlpage_precomp);
+
+    /*
+     * These read as WT_LEAF_STATS_UNKNOWN for a table whose checkpoint metadata predates this
+     * tracking and hasn't yet had a corrective WT_STAT_TYPE_TREE_WALK; callers treat that reserved
+     * marker as "unknown, fall back to another estimation technique or trigger a walk."
+     */
+    WT_STAT_WRITE(session, stats, btree_row_leaf_avg_entries,
+      __wt_atomic_load_uint64_relaxed(&btree->leaf_entry_ewma));
+    WT_STAT_WRITE(session, stats, btree_row_leaf_pages,
+      __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages));
+    return (0);
+}
+
+/*
+ * __stat_cursor_without_array --
+ *     Fill a statistics cursor from live gauges. A tree or cache walk uses a temporary array that
+ *     is not published on the handle, so the hot path keeps skipping the data-source counters.
+ */
+static int
+__stat_cursor_without_array(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
+{
+    WT_BM *bm;
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    WT_DSRC_STATS *scratch, one;
+    WT_DSRC_STATS *slots[WT_STAT_DSRC_COUNTER_SLOTS];
+    WT_DSRC_STATS **stats;
+    int i;
+    bool walk;
+
+    btree = S2BT(session);
+    bm = btree->bm;
+    scratch = NULL;
+    walk = F_ISSET(cst, WT_STAT_TYPE_CACHE_WALK | WT_STAT_TYPE_TREE_WALK);
+
+    if (walk) {
+        WT_RET(__wt_calloc_def(session, WT_STAT_DSRC_COUNTER_SLOTS, &scratch));
+        for (i = 0; i < WT_STAT_DSRC_COUNTER_SLOTS; i++)
+            slots[i] = &scratch[i];
+        stats = slots;
+        WT_ERR(__stat_apply_gauges(session, btree, bm, stats[0]));
+        if (F_ISSET(cst, WT_STAT_TYPE_CACHE_WALK))
+            __wt_evict_cache_stat_walk(session, stats);
+        if (F_ISSET(cst, WT_STAT_TYPE_TREE_WALK))
+            WT_ERR(__stat_tree_walk(session, stats));
+        __wt_stat_dsrc_aggregate(stats, &cst->u.dsrc_stats);
+    } else {
+        __wt_stat_dsrc_init_single(&one);
+        WT_ERR(__stat_apply_gauges(session, btree, bm, &one));
+        __wt_stat_dsrc_aggregate_single(&one, &cst->u.dsrc_stats);
+    }
+
+err:
+    __wt_free(session, scratch);
+    return (ret);
+}
+
+/*
  * __wt_btree_stat_init --
  *     Initialize the Btree statistics.
  */
@@ -51,6 +173,8 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 
     btree = S2BT(session);
     bm = btree->bm;
+    if (btree->dhandle->stat_array == NULL)
+        return (__stat_cursor_without_array(session, cst));
     stats = btree->dhandle->stats;
 
     WT_RET(bm->stat(bm, session, stats[0]));
@@ -100,10 +224,10 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
       __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages));
 
     if (F_ISSET(cst, WT_STAT_TYPE_CACHE_WALK))
-        __wt_evict_cache_stat_walk(session);
+        __wt_evict_cache_stat_walk(session, stats);
 
     if (F_ISSET(cst, WT_STAT_TYPE_TREE_WALK))
-        WT_RET(__stat_tree_walk(session));
+        WT_RET(__stat_tree_walk(session, stats));
 
     return (0);
 }
@@ -113,16 +237,14 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
  *     Gather btree statistics that require traversing the tree.
  */
 static int
-__stat_tree_walk(WT_SESSION_IMPL *session)
+__stat_tree_walk(WT_SESSION_IMPL *session, WT_DSRC_STATS **stats)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    WT_DSRC_STATS **stats;
     WT_REF *next_walk;
     uint32_t walk_flags;
 
     btree = S2BT(session);
-    stats = btree->dhandle->stats;
 
     /*
      * Clear the statistics we're about to count.
@@ -573,14 +695,16 @@ __size_stat_flush_key(
  *     the shared dhandle stats, so callers must not reset while another size_stats walk on this
  *     btree is still accumulating.
  */
-void
+int
 __wt_size_stat_reset(WT_SESSION_IMPL *session)
 {
     WT_DSRC_STATS **stats;
     uint64_t hist_ceiling;
 
-    if (session->dhandle == NULL || session->dhandle->stat_array == NULL)
-        return;
+    if (!WT_STAT_ENABLED(session) || session->dhandle == NULL)
+        return (0);
+    /* The walk deposits into the shared array. Allocate it now if open skipped it. */
+    WT_RET(__stat_dsrc_alloc(session, session->dhandle));
     stats = session->dhandle->stats;
 
     WT_STATP_DSRC_SET(session, stats, btree_size_leaf_pages, 0);
@@ -614,6 +738,7 @@ __wt_size_stat_reset(WT_SESSION_IMPL *session)
         hist_ceiling = S2BT(session)->maxleafpage;
     WT_STATP_DSRC_SET(session, stats, btree_size_leaf_hist_buckets, WT_SIZE_STAT_HIST_BUCKETS);
     WT_STATP_DSRC_SET(session, stats, btree_size_leaf_hist_ceiling, hist_ceiling);
+    return (0);
 }
 
 /*

@@ -1062,15 +1062,20 @@ __wt_stat_dsrc_init_single(WT_DSRC_STATS *stats)
 int
 __wt_stat_dsrc_init(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
 {
+    WT_DSRC_STATS *array;
     int i;
 
-    WT_RET(__wt_calloc(session, (size_t)WT_STAT_DSRC_COUNTER_SLOTS, sizeof(*handle->stat_array),
-      &handle->stat_array));
+    WT_RET(__wt_calloc(session, (size_t)WT_STAT_DSRC_COUNTER_SLOTS, sizeof(*array), &array));
 
+    /*
+     * Slot pointers go in before the array pointer. The hot path treats a non-NULL array pointer as
+     * permission to index the slots.
+     */
     for (i = 0; i < WT_STAT_DSRC_COUNTER_SLOTS; ++i) {
-        handle->stats[i] = &handle->stat_array[i];
+        handle->stats[i] = &array[i];
         __wt_stat_dsrc_init_single(handle->stats[i]);
     }
+    handle->stat_array = array;
     return (0);
 }
 
@@ -3343,6 +3348,8 @@ static const char *const __stats_connection_desc[] = {
   "connection: auto adjusting condition wait calls",
   "connection: auto adjusting condition wait raced to update timeout and skipped updating",
   "connection: btrees currently open",
+  "connection: btrees with data-source statistics currently allocated",
+  "connection: bytes currently requested for data-source statistics",
   "connection: condition wakes done as individual signals",
   "connection: counted condition wakes that fell back to a broadcast",
   "connection: detected system time went backwards",
@@ -4537,6 +4544,8 @@ static const int __stats_connection_otel_none[] = {
   WT_STAT_CONN_COND_AUTO_WAIT,
   WT_STAT_CONN_COND_AUTO_WAIT_SKIPPED,
   WT_STAT_CONN_BTREE_OPEN,
+  WT_STAT_CONN_BTREE_DSRC_STATS,
+  WT_STAT_CONN_BTREE_DSRC_STATS_BYTES,
   WT_STAT_CONN_COND_SIGNAL_N_SIGNALS,
   WT_STAT_CONN_COND_SIGNAL_N_BROADCAST,
   WT_STAT_CONN_TIME_TRAVEL,
@@ -5211,15 +5220,20 @@ __wt_stat_connection_init_single(WT_CONNECTION_STATS *stats)
 int
 __wt_stat_connection_init(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *handle)
 {
+    WT_CONNECTION_STATS *array;
     int i;
 
-    WT_RET(__wt_calloc(session, (size_t)WT_STAT_CONN_COUNTER_SLOTS, sizeof(*handle->stat_array),
-      &handle->stat_array));
+    WT_RET(__wt_calloc(session, (size_t)WT_STAT_CONN_COUNTER_SLOTS, sizeof(*array), &array));
 
+    /*
+     * Slot pointers go in before the array pointer. The hot path treats a non-NULL array pointer as
+     * permission to index the slots.
+     */
     for (i = 0; i < WT_STAT_CONN_COUNTER_SLOTS; ++i) {
-        handle->stats[i] = &handle->stat_array[i];
+        handle->stats[i] = &array[i];
         __wt_stat_connection_init_single(handle->stats[i]);
     }
+    handle->stat_array = array;
     return (0);
 }
 
@@ -5746,6 +5760,8 @@ __stat_connection_clear_none(WT_CONNECTION_STATS *stats)
     stats->cond_auto_wait = 0;
     stats->cond_auto_wait_skipped = 0;
     /* not clearing btree_open */
+    /* not clearing btree_dsrc_stats */
+    /* not clearing btree_dsrc_stats_bytes */
     stats->cond_signal_n_signals = 0;
     stats->cond_signal_n_broadcast = 0;
     stats->time_travel = 0;
@@ -7068,6 +7084,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cond_auto_wait += WT_STAT_CONN_READ(from, cond_auto_wait);
     to->cond_auto_wait_skipped += WT_STAT_CONN_READ(from, cond_auto_wait_skipped);
     to->btree_open += WT_STAT_CONN_READ(from, btree_open);
+    to->btree_dsrc_stats += WT_STAT_CONN_READ(from, btree_dsrc_stats);
+    to->btree_dsrc_stats_bytes += WT_STAT_CONN_READ(from, btree_dsrc_stats_bytes);
     to->cond_signal_n_signals += WT_STAT_CONN_READ(from, cond_signal_n_signals);
     to->cond_signal_n_broadcast += WT_STAT_CONN_READ(from, cond_signal_n_broadcast);
     to->time_travel += WT_STAT_CONN_READ(from, time_travel);

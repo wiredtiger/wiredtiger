@@ -201,7 +201,7 @@ extern int __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern void __wt_evict_cache_stat_walk(WT_SESSION_IMPL *session);
+extern void __wt_evict_cache_stat_walk(WT_SESSION_IMPL *session, WT_DSRC_STATS **stats);
 extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
 extern void __wt_evict_priority_clear(WT_SESSION_IMPL *session);
 extern void __wt_evict_priority_set(WT_SESSION_IMPL *session, uint64_t v);

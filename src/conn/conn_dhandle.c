@@ -172,6 +172,10 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
     __wt_free(session, dhandle->checkpoint);
     __conn_dhandle_config_clear(session);
     __wt_spin_destroy(session, &dhandle->close_lock);
+    if (dhandle->stat_array != NULL) {
+        WT_STAT_CONN_DECR(session, btree_dsrc_stats);
+        WT_STAT_CONN_DECRV(session, btree_dsrc_stats_bytes, WT_STAT_DSRC_STAT_BYTES);
+    }
     __wt_stat_dsrc_discard(session, dhandle);
     __wt_overwrite_and_free(session, dhandle);
     return (ret);
@@ -692,9 +696,19 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
          * data handle because not all data handles need statistics (for example, handles used for
          * checkpoint locking). If we are reopening the handle, then it may already have statistics
          * memory, check to avoid the leak.
+         *
+         * statistics=(fast) does not allocate. A fast statistics cursor reads the live gauges into
+         * its own snapshot. statistics=(all) still allocates here. An in-memory connection does
+         * too: its index size is the cursor insert and remove counters, which have to count from
+         * open.
          */
-        if (dhandle->stat_array == NULL)
+        if (dhandle->stat_array == NULL &&
+          (FLD_ISSET(S2C(session)->stat_flags, WT_STAT_TYPE_ALL) ||
+            F_ISSET(S2C(session), WT_CONN_IN_MEMORY))) {
             WT_ERR(__wt_stat_dsrc_init(session, dhandle));
+            WT_STAT_CONN_INCR(session, btree_dsrc_stats);
+            WT_STAT_CONN_INCRV(session, btree_dsrc_stats_bytes, WT_STAT_DSRC_STAT_BYTES);
+        }
 
         WT_ERR(__wt_btree_open(session, cfg));
         break;

@@ -1092,6 +1092,8 @@ extern int __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_
   const uint8_t *addr, size_t addr_size, WT_PAGE_BLOCK_META *block_meta,
   WT_SHARED_DSK_ITEM **shared_dsk_retp, bool *insertedp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_size_stat_reset(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_slvg_reconcile_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -1916,7 +1918,6 @@ extern void __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *a
   size_t addr_size, WT_SHARED_DSK_ITEM **shared_dsk_retp);
 extern void __wt_shared_dsk_cache_release(
   WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shared_dsk_item);
-extern void __wt_size_stat_reset(WT_SESSION_IMPL *session);
 extern void __wt_stash_discard(WT_SESSION_IMPL *session);
 extern void __wt_stash_discard_all(WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *session);
 extern void __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *to);
