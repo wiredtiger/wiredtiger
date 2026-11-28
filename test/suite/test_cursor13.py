@@ -41,7 +41,8 @@ from suite_random import suite_random
 # for dependence on the access method and found to be access-method independent, so rearranging
 # it to also test column-store is not necessary.
 class test_cursor13_base(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(fast)'
+    # The history store's cursor counters are data-source statistics.
+    conn_config = 'statistics=(all)'
     stat_cursor_cache = 0
     stat_cursor_reopen = 0
 
@@ -195,7 +196,7 @@ class test_cursor13_reopens(test_cursor13_base):
     scenarios = make_scenarios(types, connoptions, sessoptions)
 
     def conn_config(self):
-        return self.connoption + ',statistics=(fast)'
+        return self.connoption + ',statistics=(all)'
 
     def session_config(self):
         return self.sessoption
@@ -507,7 +508,7 @@ class test_cursor13_big(test_cursor13_big_base):
 class test_cursor13_sweep(test_cursor13_big_base):
     # Set dhandle sweep configuration so that dhandles should be closed within
     # two seconds of all the cursors for the dhandle being closed (cached).
-    conn_config = 'statistics=(fast),' + \
+    conn_config = 'statistics=(all),' + \
                   'file_manager=(close_scan_interval=1,close_idle_time=1,' + \
                   'close_handle_minimum=0)'
     uri = 'table:cursor13_sweep_b'

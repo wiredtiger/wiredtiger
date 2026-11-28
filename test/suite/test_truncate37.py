@@ -37,7 +37,8 @@ import wiredtiger, wttest
 # truncate on one table must not move another table's counters, and an ordinary update
 # must not move them at all.
 class test_truncate37(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=200MB,statistics=(fast)'
+    # The per-table truncate counters are data-source statistics.
+    conn_config = 'cache_size=200MB,statistics=(all)'
     uri = 'table:test_truncate37'
     other_uri = 'table:test_truncate37_other'
     config = 'key_format=i,value_format=S,allocation_size=512,leaf_page_max=4096'

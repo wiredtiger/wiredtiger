@@ -34,7 +34,8 @@ from wtscenario import make_scenarios
 #    The per-session cursor skip statistics count the entries a session steps over
 #    while moving its cursors through its own tables, and leave out metadata walks.
 class test_cursor_skip01(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(fast)'
+    # The table skip total is a data-source counter.
+    conn_config = 'statistics=(all)'
     uri = 'table:test_cursor_skip01'
 
     # Enough removed entries that every scan steps over a large range.
