@@ -207,6 +207,54 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
 }
 
 /*
+ * The most a key and value cell can add to the item itself in a disaggregated page: a descriptor
+ * byte and a packed size for each cell, and a packed time window on the value.
+ */
+#define WT_DISAGG_ITEM_CELL_RESERVE   \
+    (2 * (1 + WT_INTPACK64_MAXSIZE) + \
+      (sizeof(WT_TIME_WINDOW) / sizeof(uint64_t)) * WT_INTPACK64_MAXSIZE)
+
+/*
+ * The most the history store adds to a key and value when it saves an update: the history store key
+ * (WT_HS_KEY_FORMAT, "IuQQ") has four packed integers around the user key (the btree ID, the user
+ * key's length, the start timestamp and a counter) and the history store value (WT_HS_VALUE_FORMAT,
+ * "QQQu") has three around the user value (the stop and durable timestamps and the update type),
+ * since the trailing "u" has no length. The history store is written without going through this
+ * check, so the item has to leave room for its own history store record.
+ */
+#define WT_DISAGG_HS_RECORD_RESERVE (7 * WT_INTPACK64_MAXSIZE)
+
+/*
+ * __cursor_disagg_size_chk --
+ *     Return if a key and value are too large to fit in a single disaggregated page.
+ */
+static WT_INLINE int
+__cursor_disagg_size_chk(WT_SESSION_IMPL *session, const WT_ITEM *key, const WT_ITEM *value)
+{
+    WT_BTREE *btree = S2BT(session);
+    WT_BM *bm = btree->bm;
+    size_t kv_size, size;
+
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        return (0);
+
+    kv_size = value->size + (btree->type == BTREE_ROW ? key->size : 0);
+
+    /* Add the room for the history store record and the cells, then the page and block headers. */
+    size = kv_size + WT_DISAGG_HS_RECORD_RESERVE + WT_DISAGG_ITEM_CELL_RESERVE;
+    WT_RET(bm->write_size(bm, session, &size));
+
+    if (size > WT_BLOCK_DISAGG_MAX_WRITE_SIZE) {
+        WT_STAT_CONN_DSRC_INCR(session, cursor_write_exceeds_disagg_page_limit);
+        WT_RET_MSG(session, EINVAL,
+          "key and value size of %" WT_SIZET_FMT
+          " bytes exceeds the maximum size of a disaggregated page of %d bytes",
+          kv_size, (int)WT_BLOCK_DISAGG_MAX_WRITE_SIZE);
+    }
+    return (0);
+}
+
+/*
  * __cursor_valid_insert --
  *     Check the insert list for a valid update.
  */
@@ -1182,6 +1230,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
+    WT_RET(__cursor_disagg_size_chk(session, &cursor->key, &cursor->value));
 
     /* It's no longer possible to bulk-load into the tree. */
     __wt_btree_disable_bulk(session);
@@ -1764,6 +1813,7 @@ retry:
     WT_ERR(__wt_modify_apply_item(session, cursor->value_format, &cursor->value, modify->data));
     new = cursor->value.size;
     WT_ERR(__cursor_size_chk(session, &cursor->value));
+    WT_ERR(__cursor_disagg_size_chk(session, &cursor->key, &cursor->value));
 
     WT_STAT_CONN_DSRC_INCRV(
       session, cursor_update_bytes_changed, new > orig ? new - orig : orig - new);
@@ -1853,6 +1903,7 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
+    WT_RET(__cursor_disagg_size_chk(session, &cursor->key, &cursor->value));
 
     return (__btcur_update(cbt, &cursor->value, WT_UPDATE_STANDARD));
 }
@@ -2125,14 +2176,22 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
 void
 __wt_btcur_free_cached_memory(WT_CURSOR_BTREE *cbt)
 {
-    WT_SESSION_IMPL *session;
-
-    session = CUR2S(cbt);
+    WT_SESSION_IMPL *session = CUR2S(cbt);
 
     __wt_buf_free(session, &cbt->_row_key);
     __wt_buf_free(session, &cbt->_tmp);
     __wt_buf_free(session, &cbt->_modify_update.buf);
     __wt_buf_free(session, &cbt->_upd_value.buf);
+
+    if (cbt->batch_keys != NULL) {
+        WT_ASSERT(session, cbt->batch_keys_allocated > 0);
+        size_t nkeys = cbt->batch_keys_allocated / sizeof(WT_ITEM);
+        for (size_t i = 0; i < nkeys; i++)
+            __wt_buf_free(session, &cbt->batch_keys[i]);
+        __wt_free(session, cbt->batch_keys);
+        cbt->batch_keys_allocated = 0;
+    } else
+        WT_ASSERT(session, cbt->batch_keys_allocated == 0);
 }
 
 /*

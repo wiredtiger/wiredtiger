@@ -218,7 +218,8 @@ struct __wt_disagg_metadata_op {
     uint64_t queued_time;    /* Clock reading when the operation was queued */
     uint64_t published_time; /* Clock reading when the operation was published */
 
-    TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
+    TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Time-ordered queue linkage. */
+    WT_DISAGG_METADATA_OP *down;            /* Next entry in the table-name hash bucket. */
 };
 
 /*
@@ -282,6 +283,7 @@ struct __wt_page_delta_config {
  *     Checkpoint metadata structure for disaggregated storage.
  */
 typedef struct __wt_disagg_checkpoint_meta {
+    uint64_t complete_lsn; /* The LSN at which the checkpoint completed. */
     uint64_t metadata_lsn; /* The LSN of the metadata page. */
 
     bool has_metadata_checksum; /* Whether the metadata page checksum is present. */
@@ -316,11 +318,15 @@ struct __wt_repair {
  *      active.
  */
 struct __wt_disagg_deferred_ckpt {
-    uint64_t lsn;         /* Checkpoint metadata LSN */
-    uint64_t queued_time; /* Clock reading when the checkpoint was deferred */
-    char *meta;           /* Checkpoint metadata configuration */
+    uint64_t complete_lsn; /* LSN at which the checkpoint completed */
+    uint64_t lsn;          /* Checkpoint metadata LSN */
+    uint64_t queued_time;  /* Clock reading when the checkpoint was deferred */
+    char *meta;            /* Checkpoint metadata configuration */
     TAILQ_ENTRY(__wt_disagg_deferred_ckpt) q;
 };
+
+/* 16384 buckets keep the average chain near 15 entries for 250K active tables. */
+#define WT_DISAGG_QUEUE_HASH_BUCKETS 16384
 
 /*
  * WT_DISAGGREGATED_STORAGE --
@@ -333,6 +339,12 @@ struct __wt_disaggregated_storage {
     /* Updates are protected by the checkpoint lock. */
     char *last_checkpoint_root;             /* The root config of the last checkpoint. */
     uint32_t last_checkpoint_meta_checksum; /* The checksum of the last checkpoint metadata page. */
+    /*
+     * The LSN at which the last checkpoint completed, recorded when this node completes one or when
+     * the application installs one; zero if unknown. Distinct from the metadata page LSN kept in
+     * last_checkpoint_meta_lsn.
+     */
+    uint64_t last_checkpoint_lsn;
 
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
@@ -444,9 +456,15 @@ struct __wt_disaggregated_storage {
      */
     wt_shared uint64_t database_size;
 
-    /* To copy at the next checkpoint. */
+    /*
+     * To copy at the next checkpoint. Every entry in this queue is in exactly one bucket chain of
+     * the table-name index below; both structures are mutated only under
+     * shared_metadata_queue_lock, which callers take inside schema_lock.
+     */
     TAILQ_HEAD(__wt_disagg_shared_metadata_qh, __wt_disagg_metadata_op) shared_metadata_qh;
     WT_SPINLOCK shared_metadata_queue_lock;
+    WT_DISAGG_METADATA_OP **shared_metadata_hash; /* Bucket heads, indexed by name */
+    uint32_t shared_metadata_hash_slots;          /* Bucket count */
 
     /* Shared metadata queue statistics. */
     wt_shared uint64_t schema_awaiting_publish;
@@ -1275,24 +1293,25 @@ struct __wt_connection_impl {
 #define WT_TIMING_STRESS_HS_SEARCH 0x000002000000ull
 #define WT_TIMING_STRESS_HS_SWEEP 0x000004000000ull
 #define WT_TIMING_STRESS_LIVE_RESTORE_CLEAN_UP 0x000008000000ull
-#define WT_TIMING_STRESS_OPEN_INDEX_SLOW 0x000010000000ull
-#define WT_TIMING_STRESS_PREFETCH_1 0x000020000000ull
-#define WT_TIMING_STRESS_PREFETCH_2 0x000040000000ull
-#define WT_TIMING_STRESS_PREFETCH_3 0x000080000000ull
-#define WT_TIMING_STRESS_PREFIX_COMPARE 0x000100000000ull
-#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x000200000000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x000400000000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x000800000000ull
-#define WT_TIMING_STRESS_SESSION_ALTER_SLOW 0x001000000000ull
-#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x002000000000ull
-#define WT_TIMING_STRESS_SPLIT_1 0x004000000000ull
-#define WT_TIMING_STRESS_SPLIT_2 0x008000000000ull
-#define WT_TIMING_STRESS_SPLIT_3 0x010000000000ull
-#define WT_TIMING_STRESS_SPLIT_4 0x020000000000ull
-#define WT_TIMING_STRESS_SPLIT_5 0x040000000000ull
-#define WT_TIMING_STRESS_SPLIT_6 0x080000000000ull
-#define WT_TIMING_STRESS_SPLIT_7 0x100000000000ull
-#define WT_TIMING_STRESS_SPLIT_8 0x200000000000ull
+#define WT_TIMING_STRESS_LOG_NEWFILE_SLOW 0x000010000000ull
+#define WT_TIMING_STRESS_OPEN_INDEX_SLOW 0x000020000000ull
+#define WT_TIMING_STRESS_PREFETCH_1 0x000040000000ull
+#define WT_TIMING_STRESS_PREFETCH_2 0x000080000000ull
+#define WT_TIMING_STRESS_PREFETCH_3 0x000100000000ull
+#define WT_TIMING_STRESS_PREFIX_COMPARE 0x000200000000ull
+#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x000400000000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x000800000000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x001000000000ull
+#define WT_TIMING_STRESS_SESSION_ALTER_SLOW 0x002000000000ull
+#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x004000000000ull
+#define WT_TIMING_STRESS_SPLIT_1 0x008000000000ull
+#define WT_TIMING_STRESS_SPLIT_2 0x010000000000ull
+#define WT_TIMING_STRESS_SPLIT_3 0x020000000000ull
+#define WT_TIMING_STRESS_SPLIT_4 0x040000000000ull
+#define WT_TIMING_STRESS_SPLIT_5 0x080000000000ull
+#define WT_TIMING_STRESS_SPLIT_6 0x100000000000ull
+#define WT_TIMING_STRESS_SPLIT_7 0x200000000000ull
+#define WT_TIMING_STRESS_SPLIT_8 0x400000000000ull
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t timing_stress_flags;
 

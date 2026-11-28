@@ -512,7 +512,7 @@ TEST_CASE("Value validation reports parent containment errors", "[timestamp]")
     SECTION("Durable start after parent")
     {
         parent.newest_durable_ts = 19;
-        reason = "has a durable start time after its parent's newest durable start time";
+        reason = "has a durable start time after its parent's newest durable time";
     }
     SECTION("Start prepare before parent")
     {

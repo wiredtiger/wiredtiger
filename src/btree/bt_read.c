@@ -216,6 +216,33 @@ err:
 }
 
 /*
+ * __page_read_trim_image --
+ *     Copy a page image into a right-sized buffer if the read buffer is mostly unused space.
+ */
+static WT_INLINE int
+__page_read_trim_image(WT_SESSION_IMPL *session, WT_ITEM *image)
+{
+    WT_ITEM trimmed;
+    const WT_PAGE_HEADER *dsk;
+    size_t mem_size;
+
+    /* Mapped images have no allocated buffer, so the unused-space test below skips them. */
+    dsk = image->data;
+    mem_size = dsk->mem_size;
+
+    /* Skip the copy unless more than half of the buffer is unused. */
+    if (image->memsize <= 2 * mem_size)
+        return (0);
+
+    WT_CLEAR(trimmed);
+    WT_RET(__wt_buf_initsize(session, &trimmed, mem_size));
+    memcpy(trimmed.mem, image->data, mem_size);
+    __wt_buf_free(session, image);
+    WT_ITEM_MOVE(*image, trimmed);
+    return (0);
+}
+
+/*
  * __page_read --
  *     Read a page from the file.
  */
@@ -417,7 +444,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         __wt_buf_free(session, &tmp[0]);
 
         WT_ERR(ret);
-    }
+    } else
+        WT_ERR(__page_read_trim_image(session, &tmp[0]));
 
     disk_image_buf = build_full_disk_image_from_deltas ? &new_image_copy : &tmp[0];
 
@@ -633,10 +661,14 @@ read:
              * soon as possible. We don't do that set here because we don't want to evict the page
              * before we "acquire" it. Also avoid queuing a pre-fetch page for forced eviction
              * before it has a chance of being used. Otherwise the work we've just done is wasted.
+             *
+             * Don't apply the cache-wide no-keep mode to internal pages: their children are usually
+             * in memory, so the forced eviction fails and only wastes eviction work.
              */
             wont_need = LF_ISSET(WT_READ_WONT_NEED) ||
               F_ISSET(session, WT_SESSION_READ_WONT_NEED) ||
-              (!LF_ISSET(WT_READ_PREFETCH) && F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_NOKEEP));
+              (!LF_ISSET(WT_READ_PREFETCH) && !F_ISSET(ref, WT_REF_FLAG_INTERNAL) &&
+                F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_NOKEEP));
             continue;
         case WT_REF_LOCKED:
             if (LF_ISSET(WT_READ_NO_WAIT))

@@ -1134,7 +1134,7 @@ done:
 
 /*
  * __txn_search_prepared_op --
- *     Search for an operation's prepared update.
+ *     Find the first non-aborted update for a prepared operation.
  */
 static int
 __txn_search_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *key, uint64_t recno,
@@ -1188,6 +1188,10 @@ __txn_search_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *key
     /* We resolve each prepared key exactly once. We should always find an update. */
     WT_RET_ASSERT(session, WT_DIAGNOSTIC_PREPARED, *updp != NULL, WT_NOTFOUND,
       "unable to locate update associated with a prepared operation");
+
+    /* Prepare may leave an aborted reservation at the head of the chain. */
+    while (*updp != NULL && (*updp)->txnid == WT_TXN_ABORTED)
+        *updp = (*updp)->next;
 
     return (0);
 }
@@ -1363,12 +1367,6 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
           __wt_timestamp_to_string(txn_time_point->prepare_timestamp, ts_string[0]),
           __wt_timestamp_to_string(txn_time_point->rollback_timestamp, ts_string[1]));
 
-    /*
-     * Aborted updates can exist in the update chain of our transaction due to reserved update. Skip
-     * aborted update until we see the first valid update.
-     */
-    for (; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
-        ;
     head_upd = upd;
 
     /*
@@ -1677,17 +1675,193 @@ __txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __txn_stepdown_clone_update --
+ *     Insert a copy of a prepared update into ingest with the original prepare identity.
+ */
+static int
+__txn_stepdown_clone_update(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *stable_cbt,
+  WT_CURSOR_BTREE *ingest_cbt, WT_ITEM *key, WT_UPDATE *orig)
+{
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    WT_ITEM ingest_value, value;
+    WT_UPDATE *clone;
+    uint64_t sleep_usecs, yield_count;
+
+    clone = NULL;
+    sleep_usecs = yield_count = 0;
+
+    /* Ingest records a delete as a standard update holding the tombstone marker value. */
+    if (orig->type == WT_UPDATE_TOMBSTONE)
+        ingest_value = __wt_tombstone;
+    else {
+        if (orig->type == WT_UPDATE_MODIFY) {
+            /* Ingest has no base value to apply a modify to, so copy the full value. */
+            WT_RET(__wt_modify_reconstruct_from_upd_list(
+              session, stable_cbt, orig, stable_cbt->upd_value, WT_OPCTX_TRANSACTION));
+            __wt_value_return(stable_cbt, stable_cbt->upd_value);
+            value.data = stable_cbt->upd_value->buf.data;
+            value.size = stable_cbt->upd_value->buf.size;
+        } else {
+            value.data = orig->data;
+            value.size = orig->size;
+        }
+        WT_ERR(__wt_clayered_stable_to_ingest_value(session, &value, &ingest_value, &tmp));
+    }
+
+retry:
+    WT_ERR(__wt_btcur_reset(ingest_cbt));
+    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(ingest_cbt, key, true, NULL, false, NULL));
+    WT_ERR(ret);
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * The write went to stable only, so ingest should have no value for the key: at most a
+     * tombstone visible to this transaction, in memory or on disk. Earlier rolled back writes can
+     * remain on the update chain.
+     */
+    if (ingest_cbt->compare == 0) {
+        WT_UPDATE *existing;
+
+        if (ingest_cbt->ins != NULL)
+            existing = ingest_cbt->ins->upd;
+        else if (ingest_cbt->ref->page->modify != NULL &&
+          ingest_cbt->ref->page->modify->mod_row_update != NULL)
+            existing = ingest_cbt->ref->page->modify->mod_row_update[ingest_cbt->slot];
+        else
+            existing = NULL;
+
+        while (existing != NULL && existing->txnid == WT_TXN_ABORTED)
+            existing = existing->next;
+
+        if (existing != NULL)
+            WT_ASSERT(session,
+              existing->type == WT_UPDATE_TOMBSTONE && __wt_txn_upd_visible(session, existing));
+        else {
+            WT_TIME_WINDOW tw;
+
+            WT_ASSERT(session,
+              !__wt_read_cell_time_window(ingest_cbt, &tw) || WT_TIME_WINDOW_HAS_STOP(&tw));
+        }
+    }
+#endif
+
+    WT_ERR(__wt_upd_alloc(session, &ingest_value, WT_UPDATE_STANDARD, &clone, NULL));
+    clone->txnid = orig->txnid;
+    clone->prepared_id = orig->prepared_id;
+    clone->prepare_ts = orig->prepare_ts;
+    clone->upd_durable_ts = orig->upd_durable_ts;
+    clone->upd_start_ts = orig->upd_start_ts;
+    clone->prepare_state = orig->prepare_state;
+
+    /* A restore would reject an ingest tombstone created in memory. */
+    ret = __wt_row_modify(ingest_cbt, key, NULL, &clone, WT_UPDATE_INVALID, false, false);
+    if (ret == WT_RESTART) {
+        /* Retry from a fresh position, as a cursor insert does. */
+        __wt_free(session, clone);
+        __wt_spin_backoff(&yield_count, &sleep_usecs);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_restart);
+        goto retry;
+    }
+    WT_ERR(ret);
+    clone = NULL;
+
+err:
+    __wt_free(session, clone);
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
+ * __txn_stepdown_resolve_straddler --
+ *     Copy the prepared update from stable to ingest, then resolve both copies.
+ *
+ * This is an interim solution until dedicated support for prepared straddlers is available.
+ */
+static int
+__txn_stepdown_resolve_straddler(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_ITEM *key,
+  uint64_t recno, bool commit, WT_CURSOR **stable_cursorp, WT_CURSOR **ingest_cursorp,
+  uint32_t *ingest_cursor_stable_idp)
+{
+    WT_BTREE *ingest_btree;
+    WT_CURSOR *ingest_cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(ingest_uri);
+    WT_DECL_RET;
+    WT_UPDATE *orig;
+    const char *stable_uri;
+
+    stable_uri = op->btree->dhandle->name;
+
+    /* Prepared straddler relocation supports only row-store tables. */
+    WT_ASSERT_ALWAYS(session, op->type == WT_TXN_OP_BASIC_ROW,
+      "a prepared straddler on a column-store layered table has no relocation support");
+
+    /* Look up the update rather than use the saved pointer: eviction may have replaced it. */
+    WT_RET(__txn_search_prepared_op(session, op->btree, key, recno, stable_cursorp, &orig));
+    WT_ASSERT(session, orig != NULL && orig->prepare_state == WT_PREPARE_INPROGRESS);
+
+    if (*ingest_cursorp != NULL && *ingest_cursor_stable_idp == op->btree->id)
+        ingest_cursor = *ingest_cursorp;
+    else {
+        if (*ingest_cursorp != NULL) {
+            WT_RET((*ingest_cursorp)->close(*ingest_cursorp));
+            *ingest_cursorp = NULL;
+        }
+
+        WT_RET(__wt_scr_alloc(session, 0, &ingest_uri));
+        WT_ERR(__wt_layered_derive_ingest_uri(session, stable_uri, ingest_uri));
+        WT_ERR(__wt_open_cursor(session, ingest_uri->data, NULL, NULL, &ingest_cursor));
+        *ingest_cursorp = ingest_cursor;
+        *ingest_cursor_stable_idp = op->btree->id;
+    }
+
+    /* Make ingest the active tree so the insert is charged to it. */
+    cbt = (WT_CURSOR_BTREE *)ingest_cursor;
+    ingest_btree = CUR2BT(cbt);
+    WT_WITH_BTREE(session, ingest_btree,
+      ret =
+        __txn_stepdown_clone_update(session, (WT_CURSOR_BTREE *)*stable_cursorp, cbt, key, orig));
+    WT_ERR(ret);
+
+    /* Release the page pinned by the insert: resolution searches again and needs none pinned. */
+    WT_ERR(ingest_cursor->reset(ingest_cursor));
+
+    WT_WITH_BTREE(session, op->btree,
+      ret = __wt_txn_resolve_prepared_op(
+        session, op->btree, &session->txn->time_point, key, recno, commit, stable_cursorp));
+    WT_ERR(ret);
+    WT_WITH_BTREE(session, ingest_btree,
+      ret = __wt_txn_resolve_prepared_op(
+        session, ingest_btree, &session->txn->time_point, key, recno, commit, ingest_cursorp));
+    WT_ERR(ret);
+
+    /*
+     * Sweep discards an ingest table once a checkpoint covers its newest write. The copy is not a
+     * transaction operation, so record its resolution timestamp here.
+     */
+    __wt_btree_advance_ingest_max(ingest_btree,
+      commit ? session->txn->time_point.durable_timestamp :
+               session->txn->time_point.rollback_timestamp);
+
+err:
+    __wt_scr_free(session, &ingest_uri);
+    return (ret);
+}
+
+/*
  * __wt_txn_commit --
- *     Commit the current transaction.
+ *     Commit the current transaction. The caller passes the step-down timestamp, read under the
+ *     step-down lock, or none if step-down does not apply.
  */
 int
-__wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t step_down_ts)
 {
     struct timespec tsp;
     WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *cursor;
+    WT_CURSOR *cursor, *ingest_cursor;
     WT_DECL_RET;
     WT_ITEM *key;
     WT_REF_STATE previous_state;
@@ -1697,24 +1871,25 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_UPDATE *upd;
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp, stable_timestamp;
     uint64_t recno;
+    uint32_t ingest_cursor_stable_id;
 #ifdef HAVE_DIAGNOSTIC
-    wt_timestamp_t step_down_ts;
     uint32_t prepare_count;
     bool wrote_ingest, wrote_stable;
     bool mirroring;
 #endif
     u_int i;
-    bool cannot_fail, locked, prepare, readonly, update_durable_ts;
+    bool cannot_fail, is_straddling_commit, locked, prepare, readonly, update_durable_ts;
 
     conn = S2C(session);
     cache = conn->cache;
     cursor = NULL;
+    ingest_cursor = NULL;
+    ingest_cursor_stable_id = 0;
     key = NULL;
     txn = session->txn;
     txn_global = &conn->txn_global;
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
-    step_down_ts = __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp);
     wrote_ingest = wrote_stable = false;
     mirroring = F_ISSET(&conn->disaggregated_storage, WT_DISAGG_STEPDOWN_WRITE_MIRRORING);
 #endif
@@ -1771,6 +1946,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     }
     __wt_txn_release_snapshot(session);
 
+    /*
+     * A transaction that began before the step-down timestamp was set wrote only to stable. If it
+     * becomes durable after that timestamp, the step-down checkpoint excludes its writes, so copy
+     * them to ingest. A transaction that began later already wrote to ingest.
+     */
+    is_straddling_commit = step_down_ts != WT_TS_NONE && !F_ISSET(txn, WT_TXN_STEPDOWN_TS_SET) &&
+      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_DURABLE) &&
+      txn->time_point.durable_timestamp > step_down_ts;
+
     /* Process updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
         switch (op->type) {
@@ -1810,8 +1994,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                         key = &op->u.op_row.key;
                     else
                         recno = op->u.op_col.recno;
-                    WT_ERR(__wt_txn_resolve_prepared_op(
-                      session, op->btree, &txn->time_point, key, recno, true, &cursor));
+
+                    if (is_straddling_commit && WT_URI_IS_STABLE(op->btree->dhandle->name)) {
+                        WT_ERR(__txn_stepdown_resolve_straddler(session, op, key, recno, true,
+                          &cursor, &ingest_cursor, &ingest_cursor_stable_id));
+                    } else
+                        WT_ERR(__wt_txn_resolve_prepared_op(
+                          session, op->btree, &txn->time_point, key, recno, true, &cursor));
                 }
 
                 /*
@@ -1877,11 +2066,17 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
          * it, and never both constituents from one transaction.
          *
          * Otherwise, after the loop we verify that stable writes were mirrored to ingest.
+         *
+         * A stable write copied to ingest during commit is exempt from both rules: it is durable
+         * after the step-down timestamp, and its ingest copy is not a transaction operation.
          */
-        if (step_down_ts != WT_TS_NONE && op->type != WT_TXN_OP_NONE && op->btree != NULL) {
+        if (step_down_ts != WT_TS_NONE && op->type != WT_TXN_OP_NONE && op->btree != NULL &&
+          !(prepare && is_straddling_commit && WT_URI_IS_STABLE(op->btree->dhandle->name))) {
             if (WT_URI_IS_INGEST(op->btree->dhandle->name)) {
                 wrote_ingest = true;
-                WT_ASSERT(session, txn->first_commit_timestamp > step_down_ts);
+                WT_ASSERT(session,
+                  (prepare ? txn->time_point.durable_timestamp : txn->first_commit_timestamp) >
+                    step_down_ts);
             } else if (__wt_dhandle_shared_btree_kind(op->btree->dhandle) == WT_SHARED_BTREE_LIVE) {
                 if (!mirroring) {
                     wrote_stable = true;
@@ -1902,6 +2097,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     if (cursor != NULL) {
         WT_ERR(cursor->close(cursor));
         cursor = NULL;
+    }
+    if (ingest_cursor != NULL) {
+        WT_ERR(ingest_cursor->close(ingest_cursor));
+        ingest_cursor = NULL;
     }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -2124,6 +2323,8 @@ err:
 
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
+    if (ingest_cursor != NULL)
+        WT_TRET(ingest_cursor->close(ingest_cursor));
 
     if (locked)
         __wt_readunlock(session, &txn_global->visibility_rwlock);
@@ -2141,7 +2342,7 @@ err:
         WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
 
     WT_TRET(__wt_session_reset_cursors(session, false));
-    WT_TRET(__wt_txn_rollback(session, cfg, false));
+    WT_TRET(__wt_txn_rollback(session, cfg, false, step_down_ts));
     return (ret);
 }
 
@@ -2162,16 +2363,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR));
-
-    /*
-     * FIXME-WT-18723: remove this bypass once prepared transactions are supported across a
-     * step-down.
-     */
-    if (!FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE))
-        WT_ASSERT_ALWAYS(session,
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) ==
-            WT_TS_NONE,
-          "prepared transactions are not supported while the step-down timestamp is set");
 
     /*
      * A transaction should not have updated any of the logged tables, if debug mode logging is not
@@ -2337,25 +2528,30 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __wt_txn_rollback --
- *     Roll back the current transaction.
+ *     Roll back the current transaction. The caller passes the step-down timestamp, read under the
+ *     step-down lock, or none if step-down does not apply.
  */
 int
-__wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
+__wt_txn_rollback(
+  WT_SESSION_IMPL *session, const char *cfg[], bool api_call, wt_timestamp_t step_down_ts)
 {
-    WT_CURSOR *cursor;
+    WT_CURSOR *cursor, *ingest_cursor;
     WT_DECL_RET;
     WT_ITEM *key;
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
     uint64_t recno;
+    uint32_t ingest_cursor_stable_id;
     u_int i;
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
-    bool prepare, readonly;
+    bool is_straddling_rollback, prepare, readonly;
 
     cursor = NULL;
+    ingest_cursor = NULL;
+    ingest_cursor_stable_id = 0;
     key = NULL;
     recno = WT_RECNO_OOB;
     txn = session->txn;
@@ -2380,6 +2576,15 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
      * transaction table at the end of the function.
      */
     __wt_txn_release_snapshot(session);
+
+    /*
+     * Record a rollback after the step-down timestamp so step-up does not rediscover a preserved
+     * prepare.
+     */
+    is_straddling_rollback = step_down_ts != WT_TS_NONE && !F_ISSET(txn, WT_TXN_STEPDOWN_TS_SET) &&
+      F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK) &&
+      txn->time_point.rollback_timestamp > step_down_ts;
 
     /* Rollback and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -2422,8 +2627,13 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
                         key = &op->u.op_row.key;
                     else
                         recno = op->u.op_col.recno;
-                    WT_TRET(__wt_txn_resolve_prepared_op(
-                      session, op->btree, &txn->time_point, key, recno, false, &cursor));
+
+                    if (is_straddling_rollback && WT_URI_IS_STABLE(op->btree->dhandle->name)) {
+                        WT_TRET(__txn_stepdown_resolve_straddler(session, op, key, recno, false,
+                          &cursor, &ingest_cursor, &ingest_cursor_stable_id));
+                    } else
+                        WT_TRET(__wt_txn_resolve_prepared_op(
+                          session, op->btree, &txn->time_point, key, recno, false, &cursor));
                 }
 #ifdef HAVE_DIAGNOSTIC
                 ++prepare_count;
@@ -2468,13 +2678,23 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
          * assert the error is not generated in diagnostic mode.
          */
 #ifdef HAVE_DIAGNOSTIC
-        int ret2 = cursor->close(cursor);
-        WT_ASSERT(session, ret2 != WT_ROLLBACK);
-        WT_TRET(ret2);
+        int temp_ret = cursor->close(cursor);
+        WT_ASSERT(session, temp_ret != WT_ROLLBACK);
+        WT_TRET(temp_ret);
 #else
         WT_TRET_ERROR_OK(cursor->close(cursor), WT_ROLLBACK);
 #endif
         cursor = NULL;
+    }
+    if (ingest_cursor != NULL) {
+#ifdef HAVE_DIAGNOSTIC
+        int temp_ret = ingest_cursor->close(ingest_cursor);
+        WT_ASSERT(session, temp_ret != WT_ROLLBACK);
+        WT_TRET(temp_ret);
+#else
+        WT_TRET_ERROR_OK(ingest_cursor->close(ingest_cursor), WT_ROLLBACK);
+#endif
+        ingest_cursor = NULL;
     }
 
     __txn_release(session);

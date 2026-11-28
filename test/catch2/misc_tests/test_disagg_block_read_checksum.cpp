@@ -69,6 +69,20 @@ struct block_image {
         recompute_checksum();
     }
 
+    /*
+     * Set the in-memory size, which differs from the stored size for a compressed block. The read
+     * swaps the page header from on-disk to host byte order, so swap it to on-disk order here.
+     */
+    void
+    set_mem_size(uint32_t mem_size)
+    {
+        WT_PAGE_HEADER *dsk = reinterpret_cast<WT_PAGE_HEADER *>(bytes.data());
+
+        dsk->mem_size = mem_size;
+        __wt_page_header_byteswap(dsk);
+        recompute_checksum();
+    }
+
     /* Damage the image, leaving the stored checksum stale. */
     void
     corrupt_body(size_t offset)
@@ -116,17 +130,24 @@ make_block_image(uint32_t size, uint8_t magic, uint32_t previous_checksum, uint8
 }
 
 /*
- * Build a base page with delta_count deltas on top, each naming its predecessor. Returns the
- * checksum the address cookie must carry, which is the newest delta's.
+ * Build a base page with delta_count deltas on top, each naming its predecessor, and each with an
+ * in-memory size of mem_size if one is given. Returns the checksum the address cookie must carry,
+ * which is the newest delta's.
  */
 uint32_t
-build_chain(std::vector<block_image> &out, size_t delta_count, uint8_t flags, uint32_t size = 512)
+build_chain(std::vector<block_image> &out, size_t delta_count, uint8_t flags, uint32_t size = 512,
+  uint32_t mem_size = 0)
 {
     out.clear();
-    out.push_back(make_block_image(size, WT_BLOCK_DISAGG_MAGIC_BASE, 0, flags));
-    for (size_t i = 0; i < delta_count; i++)
-        out.push_back(
-          make_block_image(size, WT_BLOCK_DISAGG_MAGIC_DELTA, out.back().checksum, flags));
+    for (size_t i = 0; i <= delta_count; i++) {
+        block_image img = i == 0 ?
+          make_block_image(size, WT_BLOCK_DISAGG_MAGIC_BASE, 0, flags) :
+          make_block_image(size, WT_BLOCK_DISAGG_MAGIC_DELTA, out.back().checksum, flags);
+        /* Changing the size changes the checksum, so it must happen before a successor links. */
+        if (mem_size != 0)
+            img.set_mem_size(mem_size);
+        out.push_back(img);
+    }
     return (out.back().checksum);
 }
 
@@ -243,6 +264,7 @@ struct read_checksum_fixture {
         block_disagg.tableid = 42;
         block_disagg.plhandle = &plhandle;
         bm.block = reinterpret_cast<WT_BLOCK *>(&block_disagg);
+        bm.read_multiple = __wti_block_disagg_read_multiple;
 
         btree.bm = &bm;
         btree.dhandle = &dhandle;
@@ -288,11 +310,10 @@ struct read_checksum_fixture {
      * is handed, so derive them from the chain; a caller passing a size is forging an image the
      * page service never stored.
      */
-    int
-    read_multiple(uint32_t cookie_checksum, uint32_t cookie_size = 0)
+    size_t
+    pack_cookie(uint8_t *addr, uint32_t cookie_checksum, uint32_t cookie_size)
     {
         WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
-        uint8_t addr[WT_ADDR_MAX_COOKIE];
         uint8_t *endp = addr;
         bool has_deltas = blocks.size() > 1;
 
@@ -304,10 +325,37 @@ struct read_checksum_fixture {
         cookie.size = cookie_size != 0 ? cookie_size : cumulative_size();
         cookie.checksum = cookie_checksum;
         REQUIRE(__wti_block_disagg_addr_pack(session, &endp, &cookie) == 0);
+        return (static_cast<size_t>(endp - addr));
+    }
+
+    /* Read the chain through the disaggregated block manager alone. */
+    int
+    read_multiple(uint32_t cookie_checksum, uint32_t cookie_size = 0)
+    {
+        uint8_t addr[WT_ADDR_MAX_COOKIE];
+        size_t addr_size = pack_cookie(addr, cookie_checksum, cookie_size);
 
         results_count = WT_DELTA_LIMIT + 1;
-        return (__wti_block_disagg_read_multiple(&bm, session, &block_meta, addr,
-          static_cast<size_t>(endp - addr), results, &results_count));
+        return (__wti_block_disagg_read_multiple(
+          &bm, session, &block_meta, addr, addr_size, results, &results_count));
+    }
+
+    /* Read the chain the way a page read does, through the layer that unpacks each block. */
+    int
+    read_page_chain(uint32_t cookie_checksum)
+    {
+        WT_ITEM *bufs = nullptr;
+        size_t buf_count = 0;
+        uint8_t addr[WT_ADDR_MAX_COOKIE];
+        size_t addr_size = pack_cookie(addr, cookie_checksum, 0);
+
+        int ret = __wt_bm_read_multi(session, &bufs, &buf_count, &block_meta, addr, addr_size);
+        if (ret == 0) {
+            for (size_t i = 0; i < buf_count; i++)
+                __wt_buf_free(session, &bufs[i]);
+            __wt_free(session, bufs);
+        }
+        return (ret);
     }
 
     bool
@@ -624,4 +672,19 @@ TEST_CASE_METHOD(read_checksum_fixture, "disagg block read: byte-read statistics
         CHECK(block_byte_read() == before);
         CHECK(hs_byte_read() == hs_before);
     }
+}
+
+/* Reading a page with deltas counts every block's in-memory size in cache_bytes_read. */
+TEST_CASE_METHOD(read_checksum_fixture,
+  "disagg block read: cache byte-read statistics include deltas", "[block_disagg]")
+{
+    const uint32_t mem_size = 2048;
+    uint32_t cookie_checksum = build_chain(blocks, 3, WT_BLOCK_DISAGG_DATA_CKSUM, 512, mem_size);
+
+    int64_t before = WT_STAT_CONN_READ(conn->stats, cache_bytes_read);
+    int64_t session_before = WT_STAT_SESSION_READ(&session->stats, bytes_read);
+    REQUIRE(read_page_chain(cookie_checksum) == 0);
+    const int64_t expected = static_cast<int64_t>(blocks.size() * mem_size);
+    CHECK(WT_STAT_CONN_READ(conn->stats, cache_bytes_read) - before == expected);
+    CHECK(WT_STAT_SESSION_READ(&session->stats, bytes_read) - session_before == expected);
 }

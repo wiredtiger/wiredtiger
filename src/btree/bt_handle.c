@@ -1247,6 +1247,14 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
           "page sizes must be a multiple of the page allocation size (%" PRIu32 "B)",
           btree->allocsize);
 
+    /* A disaggregated page must fit in a single page log message. */
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      (btree->maxintlpage > WT_BLOCK_DISAGG_MAX_WRITE_SIZE ||
+        btree->maxleafpage > WT_BLOCK_DISAGG_MAX_WRITE_SIZE))
+        WT_RET_MSG(session, EINVAL,
+          "page sizes for disaggregated tables must not exceed %" PRIu32 "B",
+          (uint32_t)WT_BLOCK_DISAGG_MAX_WRITE_SIZE);
+
     /*
      * Default in-memory page image size for compression is 4x the maximum internal or leaf page
      * size, and enforce the on-disk page sizes as a lower-limit for the in-memory image size.

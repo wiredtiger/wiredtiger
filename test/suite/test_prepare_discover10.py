@@ -67,13 +67,14 @@ class test_prepare_discover10(wttest.WiredTigerTestCase):
         """URI(s) exercised by this run -- one table or two, based on the multi_table scenario."""
         return [self.uri] + ([self.uri_b] if self.multi_table else [])
 
-    def _open_follower(self, checkpoint_meta):
+    def _open_follower(self, checkpoint_meta, checkpoint_lsn):
         """Open a follower connection and apply the given checkpoint metadata."""
         conn_follow = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
-        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}",'
+            f'checkpoint_lsn={checkpoint_lsn})')
         return conn_follow
 
     def _checkpoint(self, conn):
@@ -120,7 +121,7 @@ class test_prepare_discover10(wttest.WiredTigerTestCase):
             ',prepared_id='      + self.prepared_id_str(prepared_id))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
         self._checkpoint(self.conn)
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
         self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
 
         for c in leader_cursors:
@@ -131,7 +132,7 @@ class test_prepare_discover10(wttest.WiredTigerTestCase):
         # ---- Phase 2 (Follower: discover and reclaim) ----
         # Walk prepared_discover and reclaim each surfaced id on a dedicated session.
         # Reclaiming sets prepared id but leaves transaction id unset.
-        conn_follow = self._open_follower(checkpoint_meta)
+        conn_follow = self._open_follower(checkpoint_meta, checkpoint_meta_lsn)
         discover_session = conn_follow.open_session()
         discover_cursor = discover_session.open_cursor('prepared_discover:')
         claim_session = conn_follow.open_session()

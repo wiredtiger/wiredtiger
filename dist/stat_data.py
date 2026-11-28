@@ -570,7 +570,7 @@ conn_stats = [
     CheckpointStat('checkpoint_sync_rec_pct', 'the percentage of checkpoint sync time spent in reconciliation across all threads', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_max', 'max time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_min', 'min time (msecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_time_recent', 'most recent time (msecs)', 'no_scale', otel_type='otel_counter'),
+    CheckpointStat('checkpoint_time_recent', 'most recent time (msecs)', 'no_clear,no_scale', otel_type='otel_gauge'),
     CheckpointStat('checkpoint_time_total', 'total time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_tree_duration', 'time spent on per-tree checkpoint work (usecs)'),
     CheckpointStat('checkpoint_wait_reduce_dirty', 'wait cycles while cache dirty level is decreasing'),
@@ -595,6 +595,8 @@ conn_stats = [
     CursorStat('cursor_modify_bytes_touch', 'cursor modify value bytes modified', 'size'),
     CursorStat('cursor_next', 'cursor next calls'),
     CursorStat('cursor_next_raw_kv_batch', 'cursor next raw key value batch calls'),
+    CursorStat('cursor_next_raw_kv_batch_allocations', 'number of memory allocations performed in service of cursor next raw key value batch'),
+    CursorStat('cursor_next_raw_kv_batch_requested', 'number of results requested by callers of cursor next raw key value batch'),
     CursorStat('cursor_next_raw_kv_batch_result', 'number of results returned by cursor next raw key value batch'),
     CursorStat('cursor_prev', 'cursor prev calls'),
     CursorStat('cursor_remove', 'cursor remove calls'),
@@ -611,6 +613,7 @@ conn_stats = [
     CursorStat('cursor_update', 'cursor update calls'),
     CursorStat('cursor_update_bytes', 'cursor update key and value bytes', 'size'),
     CursorStat('cursor_update_bytes_changed', 'cursor update value size change', 'size'),
+    CursorStat('cursor_write_exceeds_disagg_page_limit', 'cursor writes rejected for exceeding the maximum disaggregated page size'),
 
     ##########################################
     # Cursor sweep
@@ -1244,6 +1247,8 @@ dsrc_stats = [
     CursorStat('cursor_modify_bytes_touch', 'modify value bytes modified', 'size'),
     CursorStat('cursor_next', 'next calls'),
     CursorStat('cursor_next_raw_kv_batch', 'cursor next raw key value batch calls'),
+    CursorStat('cursor_next_raw_kv_batch_allocations', 'number of memory allocations performed in service of cursor next raw key value batch'),
+    CursorStat('cursor_next_raw_kv_batch_requested', 'number of results requested by callers of cursor next raw key value batch'),
     CursorStat('cursor_next_raw_kv_batch_result', 'number of results returned by cursor next raw key value batch'),
     CursorStat('cursor_prev', 'prev calls'),
     CursorStat('cursor_remove', 'remove calls'),
@@ -1259,6 +1264,7 @@ dsrc_stats = [
     CursorStat('cursor_update', 'update calls'),
     CursorStat('cursor_update_bytes', 'update key and value bytes', 'size'),
     CursorStat('cursor_update_bytes_changed', 'update value size change', 'size'),
+    CursorStat('cursor_write_exceeds_disagg_page_limit', 'writes rejected for exceeding the maximum disaggregated page size'),
 
     ##########################################
     # Reconciliation statistics
@@ -1581,6 +1587,7 @@ conn_dsrc_stats = [
     RecStat('rec_page_delta_internal_key_updated', 'internal page delta keys updated/inserted'),
     RecStat('rec_page_delta_leaf', 'leaf page deltas written'),
     RecStat('rec_page_delta_rejected_build_failed', 'page deltas rejected: build function returned false (disabled, in-memory split, or internal page constraints not met)'),
+    RecStat('rec_page_delta_rejected_chain_size', 'page deltas rejected because the delta chain would be larger than the maximum disaggregated write size'),
     RecStat('rec_page_delta_rejected_delete_threshold', 'page deltas rejected due to too many keys removed from the disk image'),
     RecStat('rec_page_delta_rejected_invalid_page_id', 'page deltas rejected due to invalid page ID'),
     RecStat('rec_page_delta_rejected_max_consecutive_exceeded', 'page deltas rejected due to max consecutive limit'),

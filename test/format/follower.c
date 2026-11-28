@@ -86,7 +86,8 @@ err:
  */
 static bool
 follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE_LOG *page_log,
-  WT_ITEM *checkpoint_metadata, wt_timestamp_t checkpoint_ts, bool set_connection_timestamps)
+  WT_ITEM *checkpoint_metadata, uint64_t checkpoint_lsn, wt_timestamp_t checkpoint_ts,
+  bool set_connection_timestamps)
 {
     WT_DISAGG_METADATA metadata;
     WT_ITEM full_metadata;
@@ -136,8 +137,9 @@ follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE
         goto done;
     }
 
-    testutil_snprintf(config, sizeof(config), "disaggregated=(checkpoint_meta=\"%.*s\")",
-      (int)checkpoint_metadata->size, (const char *)checkpoint_metadata->data);
+    testutil_snprintf(config, sizeof(config),
+      "disaggregated=(checkpoint_meta=\"%.*s\",checkpoint_lsn=%" PRIu64 ")",
+      (int)checkpoint_metadata->size, (const char *)checkpoint_metadata->data, checkpoint_lsn);
     testutil_check(conn->reconfigure(conn, config));
     printf("--- [Follower] Picked up checkpoint (metadata=[%.*s],timestamp=%#" PRIx64 ") ---\n",
       (int)checkpoint_metadata->size, (const char *)checkpoint_metadata->data, checkpoint_ts);
@@ -183,7 +185,7 @@ follower_read_latest_checkpoint(void)
     testutil_check_error_ok(ret, WT_NOTFOUND);
     if (ret != WT_NOTFOUND)
         (void)follower_try_pickup_checkpoint(session, conn, page_log, &args.checkpoint_metadata,
-          args.checkpoint_timestamp, g.reopen && disagg_is_multi_node());
+          args.checkpoint_lsn, args.checkpoint_timestamp, g.reopen && disagg_is_multi_node());
 
     free(args.checkpoint_metadata.mem);
     wt_wrap_close_session(session);
@@ -427,7 +429,8 @@ follower(void *arg)
               memcmp(g.checkpoint_metadata, (const char *)args.checkpoint_metadata.data,
                 args.checkpoint_metadata.size) != 0) {
                 if (follower_try_pickup_checkpoint(session, conn, page_log,
-                      &args.checkpoint_metadata, args.checkpoint_timestamp, false))
+                      &args.checkpoint_metadata, args.checkpoint_lsn, args.checkpoint_timestamp,
+                      false))
                     testutil_snprintf(g.checkpoint_metadata, sizeof(g.checkpoint_metadata), "%.*s",
                       (int)args.checkpoint_metadata.size,
                       (const char *)args.checkpoint_metadata.data);

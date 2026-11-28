@@ -272,6 +272,24 @@ __layered_reset_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const cha
 }
 
 /*
+ * __wt_layered_derive_ingest_uri --
+ *     Derive the ingest constituent URI from its stable counterpart.
+ */
+int
+__wt_layered_derive_ingest_uri(
+  WT_SESSION_IMPL *session, const char *stable_uri, WT_ITEM *ingest_uri)
+{
+    size_t prefix_len;
+    const char *stable_suffix;
+
+    stable_suffix = strstr(stable_uri, ".wt_stable");
+    WT_ASSERT_ALWAYS(
+      session, stable_suffix != NULL, "expected a stable constituent URI, got %s", stable_uri);
+    prefix_len = (size_t)(stable_suffix - stable_uri);
+    return (__wt_buf_fmt(session, ingest_uri, "%.*s.wt_ingest", (int)prefix_len, stable_uri));
+}
+
+/*
  * __layered_derive_stable_uri --
  *     Derive the stable constituent URI corresponding to an ingest constituent URI. The result is
  *     written into the caller's scratch buffer, which must already be allocated.

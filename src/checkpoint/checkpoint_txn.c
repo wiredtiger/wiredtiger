@@ -1088,7 +1088,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp)
 
     /* Bring all entries in the disaggregated schema operations queue to this checkpoint. */
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+    for (entry = __wt_disagg_shared_metadata_queue_first(session); entry != NULL;
+      entry = __wt_disagg_shared_metadata_queue_next(entry))
         entry->deferred = false;
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
@@ -1972,7 +1973,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     if ((ret = __wti_checkpoint_parallel_commit(session)) != 0)
         WT_ERR_PANIC(session, ret, "Checkpoint worker transaction commit failed");
-    if ((ret = __wt_txn_commit(session, NULL)) != 0)
+    if ((ret = __wt_txn_commit(session, NULL, WT_TS_NONE)) != 0)
         WT_ERR_PANIC(session, ret, "Checkpoint transaction commit failed");
 
     /* Clear the checkpoint flag, as it governs the checkpoint transaction above. */
@@ -2102,7 +2103,7 @@ err:
          */
         WT_DHANDLE_CLEAR(session);
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ROLLBACK);
-        WT_TRET_MSG(session, __wt_txn_rollback(session, NULL, false), "%s",
+        WT_TRET_MSG(session, __wt_txn_rollback(session, NULL, false, WT_TS_NONE), "%s",
           "Checkpoint transaction rollback failed");
     }
 

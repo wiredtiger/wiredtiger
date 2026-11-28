@@ -37,6 +37,7 @@ static void config_checksum(TABLE *);
 static void config_compact(void);
 static void config_compression(TABLE *, const char *);
 static void config_disagg_key_provider(void);
+static void config_disagg_page_sizes(TABLE *, void *);
 static void config_disagg_storage(void);
 static void config_disagg_victim_cache(void);
 static void config_encryption(void);
@@ -1418,6 +1419,32 @@ config_statistics(void)
 }
 
 /*
+ * config_disagg_page_sizes --
+ *     Limit a table's page sizes to what disaggregated storage can write.
+ */
+static void
+config_disagg_page_sizes(TABLE *table, void *arg)
+{
+    (void)arg; /* unused argument */
+
+    /* The limit is 32MB, which is 2^25. */
+    if (TV(BTREE_INTERNAL_PAGE_MAX) > 25) {
+        if (config_explicit(table, "btree.internal_page_max"))
+            WARN("lowering btree.internal_page_max for table%" PRIu32 " to the disagg limit",
+              table->id);
+        TV(BTREE_INTERNAL_PAGE_MAX) = 25;
+        table->max_intl_page = 1U << TV(BTREE_INTERNAL_PAGE_MAX);
+    }
+    if (TV(BTREE_LEAF_PAGE_MAX) > 25) {
+        if (config_explicit(table, "btree.leaf_page_max"))
+            WARN(
+              "lowering btree.leaf_page_max for table%" PRIu32 " to the disagg limit", table->id);
+        TV(BTREE_LEAF_PAGE_MAX) = 25;
+        table->max_leaf_page = 1U << TV(BTREE_LEAF_PAGE_MAX);
+    }
+}
+
+/*
  * config_disagg_storage --
  *     Disaggregated storage configuration.
  */
@@ -1432,6 +1459,8 @@ config_disagg_storage(void)
     g.disagg_storage_config = (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0);
     if (!g.disagg_storage_config)
         return; /* Disaggregated storage not enabled. */
+
+    tables_apply(config_disagg_page_sizes, NULL);
 
     if (GV(DISAGG_MULTI) && !GV(RUNS_PREDICTABLE_REPLAY))
         testutil_die(EINVAL,

@@ -55,6 +55,7 @@ else()
         misc_tests/test_rwlock_writer_waiting.cpp
         misc_tests/test_layered_ingest_uri.cpp
         misc_tests/test_layered_missing_stable.cpp
+        misc_tests/test_layered_prepare_stepdown.cpp
         misc_tests/test_layered_snapshot_pickup.cpp
         misc_tests/test_layered_snapshot_stress.cpp
         misc_tests/test_palite_victim_cache.cpp

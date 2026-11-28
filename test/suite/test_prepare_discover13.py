@@ -50,14 +50,15 @@ class test_prepare_discover13(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def open_follower(self, checkpoint_meta):
+    def open_follower(self, checkpoint_meta, checkpoint_lsn):
         """Open a follower connection in a separate directory."""
         conn_follow = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
         conn_follow.reconfigure(
-            f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+            f'disaggregated=(checkpoint_meta="{checkpoint_meta}",'
+            f'checkpoint_lsn={checkpoint_lsn})')
         return conn_follow
 
     def create_hs_orphan_and_close_leader(self, prepare_ts):
@@ -128,9 +129,9 @@ class test_prepare_discover13(wttest.WiredTigerTestCase):
         self.conn.set_timestamp(
             'stable_timestamp=' + self.timestamp_str(stable_ts))
         self.session.checkpoint()
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
         self.conn.close('debug=(skip_checkpoint=true)')
-        return checkpoint_meta
+        return (checkpoint_meta, checkpoint_meta_lsn)
 
     def trigger_panic_via_eviction(self, conn, ts_base):
         """
@@ -179,11 +180,11 @@ class test_prepare_discover13(wttest.WiredTigerTestCase):
         # Checkpoint at stable_ts=20.
         # (Phase 1 already set stable to prepare_ts=20.)
         self.session.checkpoint()
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        (checkpoint_meta, checkpoint_meta_lsn) = self.disagg_get_checkpoint_install()
         self.conn.close('debug=(skip_checkpoint=true)')
 
         # Phase 2: Follower discover + claim.
-        conn_follow = self.open_follower(checkpoint_meta)
+        conn_follow = self.open_follower(checkpoint_meta, checkpoint_meta_lsn)
         sess_f = conn_follow.open_session()
 
         discover_cursor = sess_f.open_cursor('prepared_discover:')
@@ -241,11 +242,11 @@ class test_prepare_discover13(wttest.WiredTigerTestCase):
         key, _ = self.create_hs_orphan_and_close_leader(prepare_ts=100)
 
         # Checkpoint at stable_ts=150 => last_checkpoint_timestamp=150.
-        checkpoint_meta = self.finish_leader_checkpoint_and_close(
+        (checkpoint_meta, checkpoint_meta_lsn) = self.finish_leader_checkpoint_and_close(
             key, prepare_ts=100, stable_ts=150)
 
         # Phase 2: Follower discover + claim with durable_ts > last_ckpt.
-        conn_follow = self.open_follower(checkpoint_meta)
+        conn_follow = self.open_follower(checkpoint_meta, checkpoint_meta_lsn)
         sess_f = conn_follow.open_session()
 
         discover_cursor = sess_f.open_cursor('prepared_discover:')

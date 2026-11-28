@@ -319,6 +319,19 @@ def session_compact_replace(orig_session_compact, session_self, uri, config):
     skip_test('Compaction is not supported in disagg storage')
 
 # Called to replace Session.create
+# Disaggregated tables don't support page sizes above this limit.
+DISAGG_MAX_PAGE_SIZE = 32 * 1024 * 1024
+
+# Return whether a table config has an internal_page_max or leaf_page_max above the disagg limit.
+def has_page_size_over_limit(config_str):
+    units = {'': 1, 'B': 1, 'K': 1024, 'KB': 1024, 'M': 1024 ** 2, 'MB': 1024 ** 2,
+             'G': 1024 ** 3, 'GB': 1024 ** 3}
+    for match in re.finditer(r'\b(?:internal_page_max|leaf_page_max)=(\d+)([kKmMgG]?[bB]?)(?![\w])',
+                             config_str):
+        if int(match.group(1)) * units[match.group(2).upper()] > DISAGG_MAX_PAGE_SIZE:
+            return True
+    return False
+
 def session_create_replace(orig_session_create, session_self, uri, config):
     testcase = WiredTigerTestCase.getCurrentTestCase()
     disagg_parameters = testcase.platform_api.getDisaggParameters()
@@ -339,6 +352,8 @@ def session_create_replace(orig_session_create, session_self, uri, config):
 
     if mark_table_as_layered:
         mark_as_layered(uri)
+        if has_page_size_over_limit(config_str):
+            skip_test('page sizes above 32MB are not supported in disagg storage')
         if (disagg_parameters.table_prefix == "layered"):
             WiredTigerTestCase.verbose(None, 2, f'    Replacing, old uri = "{uri}"')
             uri = replace_uri(uri)

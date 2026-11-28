@@ -195,3 +195,83 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
 
         sfollow.close()
         conn_follow.close('debug=(skip_checkpoint=true)')
+
+    def read_value(self, uri, key, read_ts):
+        cursor = self.session.open_cursor(uri)
+        with self.transaction(read_timestamp=read_ts, rollback=True):
+            cursor.set_key(key)
+            value = cursor.get_value() if cursor.search() == 0 else None
+        cursor.close()
+        return value
+
+    # A transaction prepares before a planned step-down is announced and resolves after it. The
+    # step-down checkpoint is older than that resolution, so the demoted node must keep it until
+    # a later checkpoint covers it.
+    def check_prepared_resolution_survives_step_down(self, commit):
+        uri = 'layered:dh01_prepared'
+        ts = self.timestamp_str
+
+        self.reopen_conn(config=self.conn_base_config +
+            'preserve_prepared=true,precise_checkpoint=true,disaggregated=(role="leader")')
+        self.conn.set_timestamp(f'oldest_timestamp={ts(1)},stable_timestamp={ts(1)}')
+        self.session.create(uri, 'key_format=S,value_format=S')
+
+        cursor = self.session.open_cursor(uri)
+        with self.transaction(commit_timestamp=2):
+            cursor['key'] = 'old'
+        self.conn.set_timestamp(f'stable_timestamp={ts(3)}')
+        self.session.checkpoint()
+
+        # Write as a follower, and keep the ingest table open so it stays in use through the
+        # leader era that follows.
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        ingest_session = self.conn.open_session('')
+        ingest_cursor = ingest_session.open_cursor('file:dh01_prepared.wt_ingest')
+        with self.transaction(commit_timestamp=5):
+            cursor['follower-key'] = 'value'
+        cursor.close()
+        self.conn.reconfigure('disaggregated=(role="leader")')
+
+        # Prepare, announce the step-down, then resolve after the announced timestamp.
+        prepare_session = self.conn.open_session('')
+        prepare_cursor = prepare_session.open_cursor(uri)
+        prepare_session.begin_transaction()
+        prepare_cursor['key'] = 'new'
+        prepare_session.prepare_transaction(
+            f'prepare_timestamp={ts(10)},prepared_id={self.prepared_id_str(1)}')
+        self.conn.set_timestamp(f'step_down_timestamp={ts(11)}')
+        if commit:
+            prepare_session.commit_transaction(
+                f'commit_timestamp={ts(13)},durable_timestamp={ts(13)}')
+        else:
+            prepare_session.rollback_transaction(f'rollback_timestamp={ts(13)}')
+        prepare_cursor.close()
+        prepare_session.close()
+        expected = 'new' if commit else 'old'
+
+        self.conn.set_timestamp(f'stable_timestamp={ts(11)}')
+        self.session.checkpoint()
+        self.conn.reconfigure('disaggregated=(role="follower")')
+
+        # The ingest table is now idle, but the checkpoint does not cover the resolution.
+        ingest_cursor.close()
+        ingest_session.close()
+        self.assert_no_ingest_reclaim(self.session)
+        self.assertEqual(self.read_value(uri, 'key', 20), expected)
+
+        # The resolution carries over a step-up.
+        self.conn.reconfigure('disaggregated=(role="leader")')
+        self.assertEqual(self.read_value(uri, 'key', 20), expected)
+
+        # A checkpoint covering the resolution makes the ingest table redundant.
+        self.conn.set_timestamp(f'stable_timestamp={ts(20)}')
+        self.session.checkpoint()
+        self.wait_for_stat(self.session, wiredtiger.stat.conn.dh_sweep_ingest_close, 1,
+            'ingest btree was not reclaimed once the checkpoint covered the resolution')
+        self.assertEqual(self.read_value(uri, 'key', 20), expected)
+
+    def test_prepared_commit_survives_step_down(self):
+        self.check_prepared_resolution_survives_step_down(commit=True)
+
+    def test_prepared_rollback_survives_step_down(self):
+        self.check_prepared_resolution_survives_step_down(commit=False)

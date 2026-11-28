@@ -539,9 +539,16 @@ __wt_log_get_backup_files(
      * represents the latest journal file that needs to be copied. Note the checkpoint selected for
      * backup may be writing to an even later log file. In that case, copying the journal files is
      * correct, but wasteful.
+     *
+     * Capture the file and set the force-new-file request under the slot lock. A switch publishes
+     * its new file into alloc_lsn and clears the request while holding that lock, so a switch in
+     * flight cannot consume this request without rolling past the file captured here.
      */
-    WT_ASSIGN_LSN(&tmp_lsn, &log->alloc_lsn);
-    max_file = tmp_lsn.l.file;
+    WTI_WITH_SLOT_LOCK(session, log, {
+        WT_ASSIGN_LSN(&tmp_lsn, &log->alloc_lsn);
+        max_file = tmp_lsn.l.file;
+        F_SET(log, WTI_LOG_FORCE_NEWFILE);
+    });
 
     /*
      * Capture the journal file the current checkpoint started in. The current checkpoint or a later
@@ -550,13 +557,6 @@ __wt_log_get_backup_files(
      */
     WT_ASSIGN_LSN(&tmp_lsn, &log->ckpt_lsn);
     min_file = tmp_lsn.l.file;
-
-    /*
-     * Force the current slot to get written to the file. Also switch to using a new log file. That
-     * log file will be removed from the list of files returned. New writes will not be included in
-     * the backup.
-     */
-    F_SET(log, WTI_LOG_FORCE_NEWFILE);
     /*
      * If another thread switched the active slot first, the force write does nothing and the log
      * has not moved on: retry until it has. The sealed file must not accept records once the list
@@ -1414,6 +1414,7 @@ err:
 int
 __wti_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WTI_LOGSLOT *slot)
 {
+    struct timespec tsp;
     WT_CONNECTION_IMPL *conn;
     WTI_LOG *log;
     bool created_log, log_to_close;
@@ -1438,6 +1439,14 @@ __wti_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WTI_LOGSLOT *slot)
      */
     if (F_ISSET(log, WTI_LOG_FORCE_NEWFILE) || !__log_size_fit(session, &log->alloc_lsn, recsize)) {
         WT_RET(__log_newfile(session, false, &created_log, &log_to_close));
+        /*
+         * Timing stress: pause with the new file published into alloc_lsn but before the
+         * force-new-file request is consumed, widening the window where a concurrent backup can
+         * capture this file and then lose its own request.
+         */
+        tsp.tv_sec = 0;
+        tsp.tv_nsec = 100 * WT_MILLION;
+        __wt_timing_stress(session, WT_TIMING_STRESS_LOG_NEWFILE_SLOW, &tsp);
         if (log_to_close)
             F_SET_ATOMIC_16(slot, WTI_SLOT_CLOSEFH);
         F_CLR(log, WTI_LOG_FORCE_NEWFILE);

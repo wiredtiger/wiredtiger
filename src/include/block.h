@@ -603,6 +603,13 @@ static_assert(sizeof(WT_BLOCK_DISAGG_HEADER) == WT_BLOCK_DISAGG_HEADER_WRITE_SIZ
 #define WT_BLOCK_DISAGG_CHECKPOINT_BUFFER (1024)
 
 /*
+ * The largest block we will write to the page log. The page log carries each block in a single
+ * message of at most 33MB (the page server's maximum message size), and the message holds more than
+ * the block, so keep 1MB of headroom. Keep this below the page log's limit if that changes.
+ */
+#define WT_BLOCK_DISAGG_MAX_WRITE_SIZE (32 * WT_MEGABYTE)
+
+/*
  * WT_BLOCK_DISAGG_ADDRESS_COOKIE --
  *	The disaggregated block manager address cookie.
  */

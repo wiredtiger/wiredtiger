@@ -202,7 +202,7 @@ int
 __wti_prepared_discover_add_artifact_upd(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_ITEM *key)
 {
     WT_PENDING_PREPARED_ITEM *prepared_item;
-    WT_TXN_OP *op;
+    WT_TXN_OP *op, *prev_op;
     WT_RET(__prepared_discover_find_or_create_item(
       session, upd->prepared_id, upd->prepare_ts, &prepared_item));
     /*
@@ -213,6 +213,17 @@ __wti_prepared_discover_add_artifact_upd(WT_SESSION_IMPL *session, WT_UPDATE *up
     WT_RET(__wt_op_modify(session, upd, op));
 
     WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW);
+
+    /*
+     * A transaction's updates to a key are discovered together, and resolving one resolves them
+     * all: have resolution visit the key once, as it does for a transaction prepared in this run.
+     */
+    if (prepared_item->mod_count > 1) {
+        prev_op = op - 1;
+        if (prev_op->btree == op->btree &&
+          __wt_lex_compare(&prev_op->u.op_row.key, &op->u.op_row.key) == 0)
+            F_SET(op, WT_TXN_OP_KEY_REPEATED);
+    }
 
 #ifdef HAVE_DIAGNOSTIC
     ++prepared_item->prepare_count;
