@@ -325,9 +325,9 @@ struct __wti_reconcile {
 #define WTI_REC_TIME_NEWEST_TXN 0x10u
 #define WTI_REC_TIME_OLDEST_START_TS 0x20u
 #define WTI_REC_TIME_PREPARE 0x40u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
-    uint16_t ts_usage_flags;
-    uint16_t delta_ts_usage_flags;
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t ts_usage_flags;
+    uint8_t delta_ts_usage_flags;
 
 /*
  * Reconciliation state flags:

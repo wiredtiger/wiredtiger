@@ -158,7 +158,7 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WTI_RECONCILE *r, bool is_delta)
 {
     uint32_t count_durable_start_ts, count_start_ts, count_start_txn, count_durable_stop_ts,
       count_stop_ts, count_stop_txn, count_prepare;
-    uint16_t ts_usage_flags;
+    uint8_t ts_usage_flags;
     if (is_delta) {
         count_durable_start_ts = r->count_delta_durable_start_ts;
         count_start_ts = r->count_delta_start_ts;
