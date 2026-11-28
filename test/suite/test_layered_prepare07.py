@@ -37,7 +37,9 @@
 # own copy of the prepare.
 #
 # Expected: all cursor operations return the committed values without error.
+# Truncate coverage also checks preserved prepares at and immediately outside two deleted ranges.
 
+from contextlib import closing
 import wiredtiger
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -255,6 +257,92 @@ class test_layered_prepare07(wttest.WiredTigerTestCase):
         keys = self.run_walk_test(all_keys, prepare_keys=[2, 4],
             walk_func=lambda s: self.collect_keys(s, forward=False), delete=True)
         self.assertEqual(sorted(keys), all_keys)
+
+    def run_truncate_walk_test(self, delete=False):
+        all_keys = list(range(1, 15))
+        truncate_ranges = [(4, 6), (9, 11)]
+        # Prepare both inclusive boundaries and their immediate exterior neighbors.
+        prepare_keys = [3, 4, 6, 7, 8, 9, 11, 12]
+        expected = [(key, 'committed_' + str(key)) for key in [1, 2, 3, 7, 8, 12, 13, 14]]
+
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+        with closing(self.session.open_cursor(self.uri)) as cursor:
+            with self.transaction(commit_timestamp=10):
+                for key in all_keys:
+                    cursor[key] = 'committed_' + str(key)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+        self.session.checkpoint()
+
+        prepare_session = self.prepare_on_conn(self.conn, prepare_keys, 20, delete)
+        try:
+            prepared_pages = self.get_stat(wiredtiger.stat.conn.rec_pages_with_prepare)
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+            self.session.checkpoint()
+            self.assertGreater(
+                self.get_stat(wiredtiger.stat.conn.rec_pages_with_prepare), prepared_pages)
+
+            with closing(self.wiredtiger_open('follower',
+                self.extensionsConfig() + self.conn_base_config +
+                'disaggregated=(role="follower")')) as conn_follow:
+                self.disagg_advance_checkpoint_and_wait(conn_follow)
+                conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+                with closing(conn_follow.open_session()) as session_follow:
+                    # A fresh follower must discover the prepare from the adopted checkpoint.
+                    with closing(session_follow.open_cursor('prepared_discover:')) as discover:
+                        self.assertEqual(discover.next(), 0)
+                        self.assertEqual(discover.get_key(), 1)
+                        with closing(conn_follow.open_session()) as claim_session:
+                            claim_session.begin_transaction(
+                                'claim_prepared_id=' + self.prepared_id_str(1))
+                            self.assertEqual(discover.next(), wiredtiger.WT_NOTFOUND)
+                            claim_session.rollback_transaction(
+                                'rollback_timestamp=' + self.timestamp_str(30))
+
+                    for key in prepare_keys:
+                        self.evict_page(session_follow, key)
+
+                    inserted = self.get_stat(
+                        wiredtiger.stat.conn.layered_truncate_list_entries_inserted,
+                        session=session_follow)
+                    removed = self.get_stat(
+                        wiredtiger.stat.conn.layered_truncate_list_gc_entries_removed,
+                        session=session_follow)
+                    for start_key, stop_key in truncate_ranges:
+                        with closing(session_follow.open_cursor(self.uri)) as start, \
+                            closing(session_follow.open_cursor(self.uri)) as stop:
+                            start.set_key(start_key)
+                            stop.set_key(stop_key)
+                            with self.transaction(session=session_follow, commit_timestamp=40):
+                                self.assertEqual(session_follow.truncate(None, start, stop, None), 0)
+                    self.assertGreater(self.get_stat(
+                        wiredtiger.stat.conn.layered_truncate_list_entries_inserted,
+                        session=session_follow), inserted)
+
+                    # Each scan crosses both ranges without resetting or repositioning its cursor.
+                    for forward in (True, False):
+                        ordered = expected if forward else list(reversed(expected))
+                        with closing(session_follow.open_cursor(self.uri)) as cursor:
+                            step = cursor.next if forward else cursor.prev
+                            with self.transaction(session=session_follow, read_timestamp=50,
+                                rollback=True):
+                                for pair in ordered:
+                                    self.assertEqual(step(), 0)
+                                    self.assertEqual((cursor.get_key(), cursor.get_value()), pair)
+                                self.assertEqual(step(), wiredtiger.WT_NOTFOUND)
+                    self.assertEqual(self.get_stat(
+                        wiredtiger.stat.conn.layered_truncate_list_gc_entries_removed,
+                        session=session_follow), removed)
+        finally:
+            self.resolve_prepared(prepare_session, rollback_ts=60)
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(60))
+            self.session.checkpoint()
+
+    def test_walk_prepared_updates_adjacent_to_truncates(self):
+        self.run_truncate_walk_test()
+
+    def test_walk_prepared_tombstones_adjacent_to_truncates(self):
+        self.run_truncate_walk_test(delete=True)
 
     def test_search_and_search_near_prepared_update(self):
         """
